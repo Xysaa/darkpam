@@ -3,12 +3,12 @@ package com.example.nutriscan.data.repository
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToOneOrNull
 import com.example.nutriscan.data.local.NutriScanDatabase
-import com.example.nutriscan.data.local.entity.toDomain
+import com.example.nutriscan.data.local.UserProfileEntity
+import com.example.nutriscan.data.local.entity.UserProfileMapper.toDomain
 import com.example.nutriscan.domain.model.Disease
 import com.example.nutriscan.domain.model.UserProfile
 import com.example.nutriscan.domain.repository.UserProfileRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -18,16 +18,17 @@ class UserProfileRepositoryImpl(
     private val database: NutriScanDatabase
 ) : UserProfileRepository {
 
-    private val queries = database.userProfileEntityQueries
+    // SQLDelight generates accessor from the .sq FILE name (UserProfile.sq → userProfileQueries)
+    private val queries = database.userProfileQueries
 
     override fun getProfile(): Flow<UserProfile?> =
         queries.selectProfile()
             .asFlow()
-            .mapToOneOrNull(Dispatchers.IO)
-            .map { it?.toDomain() }
+            .mapToOneOrNull(Dispatchers.Default)
+            .map { entity: UserProfileEntity? -> entity?.toDomain() }
 
     override suspend fun saveProfile(profile: UserProfile) =
-        withContext(Dispatchers.IO) {
+        withContext(Dispatchers.Default) {
             val now = Clock.System.now().toEpochMilliseconds()
             queries.insertProfile(
                 name       = profile.name,
@@ -41,7 +42,7 @@ class UserProfileRepositoryImpl(
         }
 
     override suspend fun updateProfile(profile: UserProfile) =
-        withContext(Dispatchers.IO) {
+        withContext(Dispatchers.Default) {
             val now = Clock.System.now().toEpochMilliseconds()
             queries.updateProfile(
                 name       = profile.name,
@@ -55,10 +56,10 @@ class UserProfileRepositoryImpl(
         }
 
     override suspend fun deleteProfile() =
-        withContext(Dispatchers.IO) { queries.deleteProfile() }
+        withContext(Dispatchers.Default) { queries.deleteProfile() }
 
     override suspend fun hasProfile(): Boolean =
-        withContext(Dispatchers.IO) {
+        withContext(Dispatchers.Default) {
             queries.countProfiles().executeAsOne() > 0
         }
 }
