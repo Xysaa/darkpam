@@ -42,6 +42,13 @@ kotlin {
             implementation(libs.koin.android)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.sqldelight.android.driver)
+            // CameraX
+            implementation(libs.camerax.core)
+            implementation(libs.camerax.camera2)
+            implementation(libs.camerax.lifecycle)
+            implementation(libs.camerax.view)
+            // ML Kit Barcode Scanning
+            implementation(libs.mlkit.barcode.scanning)
         }
 
         commonMain.dependencies {
@@ -150,7 +157,7 @@ android {
 
 sqldelight {
     databases {
-        create("NoteDatabase") {
+        create("NutriScanDatabase") {
             packageName.set("com.example.nutriscan.data.local")
         }
     }

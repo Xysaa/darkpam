@@ -103,14 +103,14 @@ private val DarkColorScheme = darkColorScheme(
 // ==================== THEME ====================
 
 @Composable
-fun NoteAITheme(
+fun NutriScanTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-    
+
     MaterialTheme(
         colorScheme = colorScheme,
-        content = content
+        content     = content
     )
 }

@@ -1,95 +1,102 @@
 package com.example.nutriscan.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.example.nutriscan.presentation.screens.addnote.AddNoteScreen
-import com.example.nutriscan.presentation.screens.ai.AIAssistantScreen
-import com.example.nutriscan.presentation.screens.detail.NoteDetailScreen
+import com.example.nutriscan.data.local.datastore.UserPreferences
+import com.example.nutriscan.presentation.screens.history.HistoryScreen
 import com.example.nutriscan.presentation.screens.home.HomeScreen
+import com.example.nutriscan.presentation.screens.onboarding.OnboardingScreen
+import com.example.nutriscan.presentation.screens.profile.ProfileScreen
+import com.example.nutriscan.presentation.screens.result.ResultScreen
+import org.koin.compose.koinInject
 
 @Composable
 fun AppNavHost(
     navController: NavHostController = rememberNavController(),
     modifier: Modifier = Modifier
 ) {
-    val navigationActions = createNavigationActions(navController)
-    
-    NavHost(
-        navController = navController,
-        startDestination = Route.Home,
-        modifier = modifier
-    ) {
-        composable<Route.Home> {
-            HomeScreen(
-                onNavigateToAddNote = { navigationActions.navigateToAddNote() },
-                onNavigateToDetail = { noteId -> navigationActions.navigateToNoteDetail(noteId) },
-                onNavigateToAI = { navigationActions.navigateToAIAssistant() }
-            )
+    // ── Onboarding gate ───────────────────────────────────────────────────────
+    // Read the onboarding flag from DataStore and redirect accordingly.
+    val userPrefs: UserPreferences = koinInject()
+    val isOnboardingDone by userPrefs.isOnboardingCompleted.collectAsStateWithLifecycle(false)
+
+    LaunchedEffect(isOnboardingDone) {
+        if (isOnboardingDone) {
+            // If we are still sitting on Onboarding, push to Home
+            val current = navController.currentBackStackEntry?.destination?.route
+            if (current?.contains("Onboarding") == true) {
+                navController.navigate(Route.Home) {
+                    popUpTo(Route.Onboarding) { inclusive = true }
+                }
+            }
         }
-        
-        composable<Route.AddNote> { backStackEntry ->
-            val route: Route.AddNote = backStackEntry.toRoute()
-            AddNoteScreen(
-                noteId = route.noteId,
-                onNavigateBack = { navigationActions.navigateBack() },
-                onNavigateToAI = { text ->
-                    navigationActions.navigateToAIAssistant(
-                        noteId = route.noteId,
-                        initialText = text
-                    )
+    }
+
+    NavHost(
+        navController    = navController,
+        startDestination = if (isOnboardingDone) Route.Home else Route.Onboarding,
+        modifier         = modifier
+    ) {
+
+        // ── Onboarding ────────────────────────────────────────────────────────
+        composable<Route.Onboarding> {
+            OnboardingScreen(
+                onProfileSaved = {
+                    navController.navigate(Route.Home) {
+                        popUpTo(Route.Onboarding) { inclusive = true }
+                    }
                 }
             )
         }
-        
-        composable<Route.NoteDetail> { backStackEntry ->
-            val route: Route.NoteDetail = backStackEntry.toRoute()
-            NoteDetailScreen(
-                noteId = route.noteId,
-                onNavigateBack = { navigationActions.navigateBack() },
-                onNavigateToEdit = { navigationActions.navigateToAddNote(route.noteId) },
-                onShare = { _ -> }
+
+        // ── Home / Scanner ────────────────────────────────────────────────────
+        composable<Route.Home> {
+            HomeScreen(
+                onBarcodeScanned = { barcode ->
+                    navController.navigate(Route.Result(barcode))
+                },
+                onNavigateToHistory = {
+                    navController.navigate(Route.History)
+                },
+                onNavigateToProfile = {
+                    navController.navigate(Route.Profile)
+                }
             )
         }
-        
-        composable<Route.AIAssistant> { backStackEntry ->
-            val route: Route.AIAssistant = backStackEntry.toRoute()
-            AIAssistantScreen(
-                noteId = route.noteId,
-                initialText = route.initialText,
-                onNavigateBack = { navigationActions.navigateBack() },
-                onApplyResult = null
+
+        // ── Result ────────────────────────────────────────────────────────────
+        composable<Route.Result> { backStackEntry ->
+            val route: Route.Result = backStackEntry.toRoute()
+            ResultScreen(
+                barcode        = route.barcode,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToProfile = { navController.navigate(Route.Profile) }
             )
         }
-    }
-}
 
-private fun createNavigationActions(navController: NavHostController): NavigationActions {
-    return object : NavigationActions {
-        override fun navigateToHome() {
-            navController.navigate(Route.Home) {
-                popUpTo(Route.Home) { inclusive = true }
-            }
-        }
-        
-        override fun navigateToAddNote(noteId: Long?) {
-            navController.navigate(Route.AddNote(noteId))
-        }
-        
-        override fun navigateToNoteDetail(noteId: Long) {
-            navController.navigate(Route.NoteDetail(noteId))
-        }
-        
-        override fun navigateToAIAssistant(noteId: Long?, initialText: String?) {
-            navController.navigate(Route.AIAssistant(noteId, initialText))
+        // ── History ───────────────────────────────────────────────────────────
+        composable<Route.History> {
+            HistoryScreen(
+                onNavigateBack   = { navController.popBackStack() },
+                onScanSelected   = { barcode ->
+                    navController.navigate(Route.Result(barcode))
+                }
+            )
         }
 
-        override fun navigateBack() {
-            navController.popBackStack()
+        // ── Profile ───────────────────────────────────────────────────────────
+        composable<Route.Profile> {
+            ProfileScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }
