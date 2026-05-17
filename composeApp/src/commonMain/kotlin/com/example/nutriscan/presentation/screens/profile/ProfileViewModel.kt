@@ -56,12 +56,15 @@ class ProfileViewModel(
         viewModelScope.launch {
             getProfileUseCase().collect { profile ->
                 if (profile != null) {
-                    // Only update if we're not currently editing
-                    if (_uiState.value !is ProfileUiState.Editing && _uiState.value !is ProfileUiState.Saving) {
+                    // Skip update dari DB hanya saat sedang Editing (agar form tidak di-reset)
+                    // Saat Saving, biarkan onSuccess di saveProfile() yang handle transisi
+                    if (_uiState.value !is ProfileUiState.Editing) {
                         _uiState.value = ProfileUiState.Viewing(profile)
                     }
                 } else {
-                    _uiState.value = ProfileUiState.Error("Profil tidak ditemukan")
+                    if (_uiState.value !is ProfileUiState.Editing) {
+                        _uiState.value = ProfileUiState.Error("Profil tidak ditemukan")
+                    }
                 }
             }
         }
@@ -142,7 +145,11 @@ class ProfileViewModel(
             )
 
             updateProfileUseCase(updated)
-                .onSuccess  { /* DB flow will push updated Viewing state via init collector */ }
+                .onSuccess  {
+                    // Langsung pindah ke Viewing dengan data terbaru.
+                    // Tidak menunggu flow DB — flow di init diblokir saat Saving.
+                    _uiState.value = ProfileUiState.Viewing(updated)
+                }
                 .onFailure  { e ->
                     _uiState.value = ProfileUiState.Error(e.message ?: "Gagal menyimpan profil")
                 }
