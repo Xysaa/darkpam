@@ -3,11 +3,11 @@ package com.example.nutriscan.data.repository
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import com.example.nutriscan.data.local.NutriScanDatabase
-import com.example.nutriscan.data.local.entity.toDomain
+import com.example.nutriscan.data.local.ScanHistoryEntity
+import com.example.nutriscan.data.local.entity.ScanHistoryMapper.toDomain
 import com.example.nutriscan.domain.model.ScanResult
 import com.example.nutriscan.domain.repository.ScanHistoryRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -17,30 +17,31 @@ class ScanHistoryRepositoryImpl(
     private val database: NutriScanDatabase
 ) : ScanHistoryRepository {
 
-    private val queries = database.scanHistoryEntityQueries
+    // SQLDelight generates accessor from the .sq FILE name (ScanHistory.sq → scanHistoryQueries)
+    private val queries = database.scanHistoryQueries
 
     override fun getAllHistory(): Flow<List<ScanResult>> =
         queries.getAllHistory()
             .asFlow()
-            .mapToList(Dispatchers.IO)
-            .map { list -> list.map { it.toDomain() } }
+            .mapToList(Dispatchers.Default)
+            .map { list: List<ScanHistoryEntity> -> list.map { it.toDomain() } }
 
     override fun getRecentHistory(limit: Long): Flow<List<ScanResult>> =
         queries.getRecentHistory(limit)
             .asFlow()
-            .mapToList(Dispatchers.IO)
-            .map { list -> list.map { it.toDomain() } }
+            .mapToList(Dispatchers.Default)
+            .map { list: List<ScanHistoryEntity> -> list.map { it.toDomain() } }
 
     override suspend fun getScanById(id: Long): ScanResult? =
-        withContext(Dispatchers.IO) {
+        withContext(Dispatchers.Default) {
             queries.getScanById(id).executeAsOneOrNull()?.toDomain()
         }
 
     override suspend fun saveScan(scanResult: ScanResult) =
-        withContext(Dispatchers.IO) {
-            val p = scanResult.product
-            val n = p.nutriments
-            val a = scanResult.analysis
+        withContext(Dispatchers.Default) {
+            val p   = scanResult.product
+            val n   = p.nutriments
+            val a   = scanResult.analysis
             val now = Clock.System.now().toEpochMilliseconds()
             queries.insertScan(
                 barcode       = p.barcode,
@@ -62,8 +63,8 @@ class ScanHistoryRepositoryImpl(
         }
 
     override suspend fun deleteScan(id: Long) =
-        withContext(Dispatchers.IO) { queries.deleteScanById(id) }
+        withContext(Dispatchers.Default) { queries.deleteScanById(id) }
 
     override suspend fun clearHistory() =
-        withContext(Dispatchers.IO) { queries.clearHistory() }
+        withContext(Dispatchers.Default) { queries.clearHistory() }
 }
