@@ -1,9 +1,8 @@
 package com.example.nutriscan.presentation.screens.home
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,283 +12,256 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.NoteAlt
-import androidx.compose.material.icons.outlined.Sort
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.nutriscan.domain.model.Note
-import com.example.nutriscan.domain.model.NoteCategory
-import com.example.nutriscan.domain.usecase.NoteSortBy
-import com.example.nutriscan.presentation.components.EmptyState
-import com.example.nutriscan.presentation.components.ErrorState
+import com.example.nutriscan.core.camera.BarcodeScanResult
+import com.example.nutriscan.core.camera.CameraBarcodeScannerView
+import com.example.nutriscan.domain.model.ScanResult
+import com.example.nutriscan.presentation.components.ErrorMessage
 import com.example.nutriscan.presentation.components.LoadingIndicator
-import com.example.nutriscan.presentation.components.NoteCard
+import com.example.nutriscan.presentation.components.StatusChip
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onNavigateToAddNote: () -> Unit,
-    onNavigateToDetail: (Long) -> Unit,
-    onNavigateToAI: () -> Unit,
+    onBarcodeScanned: (String) -> Unit,
+    onNavigateToHistory: () -> Unit,
+    onNavigateToProfile: () -> Unit,
     viewModel: HomeViewModel = koinViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val currentSortBy by viewModel.sortBy.collectAsStateWithLifecycle()
-    var showSearch by remember { mutableStateOf(false) }
-    var showSortMenu by remember { mutableStateOf(false) }
-    
+    val uiState        by viewModel.uiState.collectAsStateWithLifecycle()
+    val isScannerActive by viewModel.isScannerActive.collectAsStateWithLifecycle()
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    if (showSearch) {
-                        SearchField(
-                            query = when (val state = uiState) {
-                                is HomeUiState.Success -> state.query
-                                is HomeUiState.Empty -> state.query
-                                else -> ""
-                            },
-                            onQueryChange = viewModel::onSearchQueryChange,
-                            onClear = {
-                                viewModel.clearSearch()
-                                showSearch = false
-                            }
-                        )
-                    } else {
-                        Text("NoteAI")
-                    }
-                },
+                title = { Text("NutriScan") },
                 actions = {
-                    if (!showSearch) {
-                        IconButton(onClick = { showSearch = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "Cari")
-                        }
-                        
-                        IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.Outlined.Sort, contentDescription = "Urutkan")
-                        }
-                        
-                        SortDropdownMenu(
-                            expanded = showSortMenu,
-                            currentSortBy = currentSortBy,
-                            onSortSelected = { 
-                                viewModel.onSortByChanged(it)
-                                showSortMenu = false
-                            },
-                            onDismiss = { showSortMenu = false }
-                        )
+                    IconButton(onClick = onNavigateToHistory) {
+                        Icon(Icons.Outlined.History, contentDescription = "Riwayat")
                     }
-                    
-                    IconButton(onClick = onNavigateToAI) {
-                        Icon(Icons.Outlined.AutoAwesome, contentDescription = "AI Assistant")
+                    IconButton(onClick = onNavigateToProfile) {
+                        Icon(Icons.Outlined.Person, contentDescription = "Profil")
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToAddNote) {
-                Icon(Icons.Default.Add, contentDescription = "Tambah Catatan")
-            }
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            CategoryFilterRow(
-                selectedCategory = when (val state = uiState) {
-                    is HomeUiState.Success -> state.category
-                    is HomeUiState.Empty -> state.category
-                    else -> null
-                },
-                onCategorySelected = viewModel::onCategorySelected
-            )
-            
-            when (val state = uiState) {
-                is HomeUiState.Loading -> {
-                    LoadingIndicator()
-                }
-                
-                is HomeUiState.Success -> {
-                    NotesList(
-                        notes = state.notes,
-                        onNoteClick = onNavigateToDetail,
-                        onPinClick = viewModel::togglePin,
-                        onDeleteClick = viewModel::deleteNote
-                    )
-                }
-                
-                is HomeUiState.Empty -> {
-                    EmptyState(
-                        title = if (state.query.isNotBlank() || state.category != null) {
-                            "Tidak Ditemukan"
-                        } else {
-                            "Belum Ada Catatan"
-                        },
-                        message = if (state.query.isNotBlank() || state.category != null) {
-                            "Coba ubah kata kunci atau filter"
-                        } else {
-                            "Tap + untuk membuat catatan baru"
-                        },
-                        icon = {
-                            Icon(
-                                Icons.Outlined.NoteAlt,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                            )
-                        }
-                    )
-                }
-                
-                is HomeUiState.Error -> {
-                    ErrorState(
-                        message = state.message,
-                        onRetry = { viewModel.clearSearch() }
+            if (!isScannerActive) {
+                FloatingActionButton(
+                    onClick = viewModel::openScanner,
+                    shape   = CircleShape
+                ) {
+                    Icon(
+                        imageVector        = Icons.Outlined.QrCodeScanner,
+                        contentDescription = "Scan Barcode",
+                        modifier           = Modifier.size(28.dp)
                     )
                 }
             }
         }
-    }
-}
+    ) { padding ->
 
-@Composable
-private fun SearchField(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onClear: () -> Unit
-) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        placeholder = { Text("Cari catatan...") },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-        trailingIcon = {
-            AnimatedVisibility(
-                visible = query.isNotBlank(),
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                IconButton(onClick = onClear) {
-                    Icon(Icons.Default.Close, contentDescription = "Hapus")
-                }
-            }
-        }
-    )
-}
-
-@Composable
-private fun SortDropdownMenu(
-    expanded: Boolean,
-    currentSortBy: NoteSortBy,
-    onSortSelected: (NoteSortBy) -> Unit,
-    onDismiss: () -> Unit
-) {
-    DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismiss
-    ) {
-        NoteSortBy.entries.forEach { sortBy ->
-            DropdownMenuItem(
-                text = { 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(sortBy.displayName)
-                        if (sortBy == currentSortBy) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("✓", color = MaterialTheme.colorScheme.primary)
+        if (isScannerActive) {
+            // ── Full-screen camera scanner ────────────────────────────────────
+            Box(modifier = Modifier.fillMaxSize()) {
+                CameraBarcodeScannerView(
+                    modifier = Modifier.fillMaxSize(),
+                    onBarcodeDetected = { result ->
+                        viewModel.closeScanner()
+                        if (result is BarcodeScanResult.Success) {
+                            onBarcodeScanned(result.barcode)
                         }
                     }
-                },
-                onClick = { onSortSelected(sortBy) }
-            )
-        }
-    }
-}
+                )
 
-@Composable
-private fun CategoryFilterRow(
-    selectedCategory: NoteCategory?,
-    onCategorySelected: (NoteCategory?) -> Unit
-) {
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        item {
-            FilterChip(
-                selected = selectedCategory == null,
-                onClick = { onCategorySelected(null) },
-                label = { Text("Semua") }
-            )
-        }
-        
-        items(NoteCategory.entries) { category ->
-            FilterChip(
-                selected = selectedCategory == category,
-                onClick = { 
-                    onCategorySelected(
-                        if (selectedCategory == category) null else category
+                // Close button overlay
+                Surface(
+                    modifier  = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp),
+                    shape     = CircleShape,
+                    color     = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                ) {
+                    IconButton(onClick = viewModel::closeScanner) {
+                        Icon(Icons.Default.Close, contentDescription = "Tutup Scanner")
+                    }
+                }
+
+                // Scan guide overlay
+                ScanGuideOverlay(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+        } else {
+            // ── Main content ──────────────────────────────────────────────────
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                // Hero scan prompt
+                ScanPromptCard(
+                    onClick  = viewModel::openScanner,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+
+                // Recent scans section
+                when (val state = uiState) {
+                    is HomeUiState.Loading -> LoadingIndicator()
+
+                    is HomeUiState.Ready -> {
+                        if (state.recentScans.isNotEmpty()) {
+                            Text(
+                                text     = "Scan Terakhir",
+                                style    = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                            LazyColumn(
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(state.recentScans, key = { it.id }) { scan ->
+                                    RecentScanCard(
+                                        scan    = scan,
+                                        onClick = { onBarcodeScanned(scan.product.barcode) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    is HomeUiState.Error -> ErrorMessage(
+                        message = state.message,
+                        onRetry = null
                     )
-                },
-                label = { Text(category.displayName) }
+
+                    else -> Unit
+                }
+            }
+        }
+    }
+}
+
+// ── Sub-composables ───────────────────────────────────────────────────────────
+
+@Composable
+private fun ScanPromptCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier  = modifier.fillMaxWidth(),
+        onClick   = onClick,
+        colors    = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Row(
+            modifier            = Modifier.padding(20.dp),
+            verticalAlignment   = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                imageVector        = Icons.Outlined.QrCodeScanner,
+                contentDescription = null,
+                modifier           = Modifier.size(48.dp),
+                tint               = MaterialTheme.colorScheme.onPrimaryContainer
             )
+            Column {
+                Text(
+                    text  = "Scan Produk",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    text  = "Arahkan kamera ke barcode makanan/minuman",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun NotesList(
-    notes: List<Note>,
-    onNoteClick: (Long) -> Unit,
-    onPinClick: (Long) -> Unit,
-    onDeleteClick: (Long) -> Unit
+private fun RecentScanCard(
+    scan: ScanResult,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
     ) {
-        items(
-            items = notes,
-            key = { it.id }
-        ) { note ->
-            NoteCard(
-                note = note,
-                onClick = { onNoteClick(note.id) },
-                onPinClick = { onPinClick(note.id) },
-                onDeleteClick = { onDeleteClick(note.id) }
+        Row(
+            modifier              = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text     = scan.product.displayName,
+                    style    = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (scan.product.brand.isNotBlank()) {
+                    Text(
+                        text  = scan.product.brand,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(Modifier.size(8.dp))
+            StatusChip(status = scan.analysis.overallStatus)
+        }
+    }
+}
+
+@Composable
+private fun ScanGuideOverlay(modifier: Modifier = Modifier) {
+    Column(
+        modifier            = modifier.padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Text(
+                text     = "Arahkan kamera ke barcode produk",
+                style    = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
     }

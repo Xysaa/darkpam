@@ -1,0 +1,41 @@
+-- UserProfile table schema for NutriScanDatabase
+
+CREATE TABLE UserProfileEntity (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    age         INTEGER NOT NULL,
+    weight      REAL    NOT NULL,  -- kg
+    height      REAL    NOT NULL,  -- cm
+    conditions  TEXT    NOT NULL DEFAULT '',  -- comma-separated Disease names
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+
+-- Get the single user profile (app has only one user)
+selectProfile:
+SELECT * FROM UserProfileEntity
+LIMIT 1;
+
+-- Insert a new profile
+insertProfile:
+INSERT INTO UserProfileEntity (name, age, weight, height, conditions, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- Update existing profile by id
+updateProfile:
+UPDATE UserProfileEntity
+SET name       = ?,
+    age        = ?,
+    weight     = ?,
+    height     = ?,
+    conditions = ?,
+    updated_at = ?
+WHERE id = ?;
+
+-- Delete profile
+deleteProfile:
+DELETE FROM UserProfileEntity;
+
+-- Count profiles (used to check if onboarding is done)
+countProfiles:
+SELECT COUNT(*) FROM UserProfileEntity;
