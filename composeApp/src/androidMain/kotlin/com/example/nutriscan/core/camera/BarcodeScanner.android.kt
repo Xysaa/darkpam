@@ -1,6 +1,10 @@
 package com.example.nutriscan.core.camera
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -9,15 +13,26 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -34,12 +49,58 @@ actual fun CameraBarcodeScannerView(
     onBarcodeDetected: (BarcodeScanResult) -> Unit,
     modifier: Modifier
 ) {
-    val context       = LocalContext.current
+    val context        = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Prevent firing the callback multiple times for the same scan session
-    var isProcessing by remember { mutableStateOf(false) }
+    // ── Runtime permission state ──────────────────────────────────────────────
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var permissionDenied by remember { mutableStateOf(false) }
 
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+        permissionDenied    = !granted
+    }
+
+    // Request permission on first composition if not yet granted
+    LaunchedEffect(Unit) {
+        if (!hasCameraPermission) {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    // ── Permission denied UI ──────────────────────────────────────────────────
+    if (permissionDenied) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier            = Modifier.padding(32.dp)
+            ) {
+                Text(
+                    text      = "Izin kamera diperlukan untuk memindai barcode.",
+                    style     = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
+                    Text("Izinkan Kamera")
+                }
+            }
+        }
+        return
+    }
+
+    // ── Waiting for permission grant ─────────────────────────────────────────
+    if (!hasCameraPermission) return
+
+    // ── Camera preview ────────────────────────────────────────────────────────
+    var isProcessing by remember { mutableStateOf(false) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
     DisposableEffect(Unit) {
@@ -57,12 +118,10 @@ actual fun CameraBarcodeScannerView(
                         runCatching {
                             val cameraProvider = cameraProviderFuture.get()
 
-                            // ── Preview use-case ──────────────────────────────
                             val preview = Preview.Builder().build().also {
                                 it.surfaceProvider = previewView.surfaceProvider
                             }
 
-                            // ── ML Kit barcode scanner ────────────────────────
                             val options = BarcodeScannerOptions.Builder()
                                 .setBarcodeFormats(
                                     Barcode.FORMAT_EAN_13,
@@ -77,7 +136,6 @@ actual fun CameraBarcodeScannerView(
                                 .build()
                             val scanner = BarcodeScanning.getClient(options)
 
-                            // ── Image analysis use-case ───────────────────────
                             val analysis = ImageAnalysis.Builder()
                                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                 .build()
@@ -85,13 +143,13 @@ actual fun CameraBarcodeScannerView(
                                     imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
                                         if (!isProcessing) {
                                             processImageProxy(
-                                                scanner      = scanner,
-                                                imageProxy   = imageProxy,
-                                                onSuccess    = { barcode ->
+                                                scanner   = scanner,
+                                                imageProxy = imageProxy,
+                                                onSuccess = { barcode ->
                                                     isProcessing = true
                                                     onBarcodeDetected(BarcodeScanResult.Success(barcode))
                                                 },
-                                                onFailure    = { error ->
+                                                onFailure = { error ->
                                                     Log.e(TAG, "ML Kit error: $error")
                                                     onBarcodeDetected(BarcodeScanResult.Error(error))
                                                 }
@@ -102,7 +160,6 @@ actual fun CameraBarcodeScannerView(
                                     }
                                 }
 
-                            // ── Bind to lifecycle ─────────────────────────────
                             cameraProvider.unbindAll()
                             cameraProvider.bindToLifecycle(
                                 lifecycleOwner,
