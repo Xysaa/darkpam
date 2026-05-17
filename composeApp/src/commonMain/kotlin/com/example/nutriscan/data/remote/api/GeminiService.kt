@@ -27,6 +27,11 @@ class GeminiService(private val client: HttpClient) {
         prompt: String,
         systemPrompt: String? = null
     ): Result<String> = runCatching {
+        // Guard: jika API key kosong, lempar error yang jelas
+        if (ApiConfig.geminiApiKey.isBlank()) {
+            throw Exception("Gemini API key belum dikonfigurasi. Tambahkan GEMINI_API_KEY di local.properties.")
+        }
+
         val contents = mutableListOf<GeminiContent>()
         
         if (systemPrompt != null) {

@@ -102,10 +102,10 @@ class ResultViewModel(
                     return@launch
                 }
 
-                // 2. Fetch produk (cache → OpenFoodFacts → dummy)
+                // 2. Fetch produk (cache lokal → OpenFoodFacts API → dummy fallback)
                 val product = productRepository.getProductByBarcode(barcode).getOrThrow()
 
-                // 3. Analisis nutrisi lokal
+                // 3. Analisis nutrisi lokal (selalu hitung ulang, pakai data profil terkini)
                 val analysis = analyzeNutritionUseCase(product, profile)
 
                 // 4. Tampilkan hasil segera, AI suggestion menyusul
@@ -116,7 +116,7 @@ class ResultViewModel(
                     isAiLoading = true
                 )
 
-                // 5. Simpan ke history (tanpa AI suggestion dulu)
+                // 5. Simpan ke history
                 scanHistoryRepository.saveScan(
                     ScanResult(
                         product   = product,
@@ -125,9 +125,9 @@ class ResultViewModel(
                     )
                 )
 
-                // 6. Minta saran AI (non-blocking, update state jika berhasil)
-                val aiSuggestion = aiRepository.analyzeNutrition(product, profile)
-                    .getOrNull()
+                // 6. Minta saran AI — selalu dipanggil, tidak peduli dari cache atau API
+                //    getOrNull() agar gagal-diam (tidak crash), tampil "tidak tersedia"
+                val aiSuggestion = aiRepository.analyzeNutrition(product, profile).getOrNull()
 
                 _uiState.update { current ->
                     if (current is ResultUiState.Success) {

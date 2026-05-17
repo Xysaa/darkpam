@@ -27,21 +27,50 @@ class HomeViewModel(
     private val scanHistoryRepository: ScanHistoryRepository
 ) : ViewModel() {
 
-    /** Whether the camera preview is currently shown */
+    // ── Scanner state ────────────────────────────────────────────────────────
     private val _isScannerActive = MutableStateFlow(false)
     val isScannerActive: StateFlow<Boolean> = _isScannerActive.asStateFlow()
 
-    /** Recent scans shown below the scanner button */
+    // ── Manual barcode input state ───────────────────────────────────────────
+    private val _showManualInput = MutableStateFlow(false)
+    val showManualInput: StateFlow<Boolean> = _showManualInput.asStateFlow()
+
+    private val _manualBarcodeText = MutableStateFlow("")
+    val manualBarcodeText: StateFlow<String> = _manualBarcodeText.asStateFlow()
+
+    // ── Recent scans ─────────────────────────────────────────────────────────
     val uiState: StateFlow<HomeUiState> = scanHistoryRepository
         .getRecentHistory(limit = 5)
         .map<List<ScanResult>, HomeUiState> { HomeUiState.Ready(it) }
         .catch { e -> emit(HomeUiState.Error(e.message ?: "Terjadi kesalahan")) }
         .stateIn(
-            scope         = viewModelScope,
-            started       = SharingStarted.WhileSubscribed(5_000),
-            initialValue  = HomeUiState.Loading
+            scope        = viewModelScope,
+            started      = SharingStarted.WhileSubscribed(5_000),
+            initialValue = HomeUiState.Loading
         )
 
+    // ── Camera scanner ───────────────────────────────────────────────────────
     fun openScanner()  { _isScannerActive.value = true  }
     fun closeScanner() { _isScannerActive.value = false }
+
+    // ── Manual input ─────────────────────────────────────────────────────────
+    fun openManualInput()  {
+        _manualBarcodeText.value = ""
+        _showManualInput.value   = true
+    }
+    fun closeManualInput() { _showManualInput.value = false }
+
+    fun onManualBarcodeChange(text: String) {
+        // Hanya angka dan huruf, maks 20 karakter
+        _manualBarcodeText.value = text.filter { it.isLetterOrDigit() }.take(20)
+    }
+
+    /** Mengembalikan barcode yang valid, atau null jika terlalu pendek */
+    fun submitManualBarcode(): String? {
+        val barcode = _manualBarcodeText.value.trim()
+        return if (barcode.length >= 4) {
+            closeManualInput()
+            barcode
+        } else null
+    }
 }
