@@ -126,13 +126,17 @@ class ResultViewModel(
                 )
 
                 // 6. Minta saran AI — selalu dipanggil, tidak peduli dari cache atau API
-                //    getOrNull() agar gagal-diam (tidak crash), tampil "tidak tersedia"
-                val aiSuggestion = aiRepository.analyzeNutrition(product, profile).getOrNull()
+                val aiResult     = aiRepository.analyzeNutrition(product, profile)
+                val aiSuggestion = aiResult.getOrNull()
+                // Tampilkan pesan error Gemini ke user jika gagal (bukan diam-diam null)
+                val aiError      = if (aiSuggestion == null) aiResult.exceptionOrNull()?.message else null
 
                 _uiState.update { current ->
                     if (current is ResultUiState.Success) {
                         current.copy(
-                            analysis    = current.analysis.copy(aiSuggestion = aiSuggestion),
+                            analysis    = current.analysis.copy(
+                                aiSuggestion = aiSuggestion ?: aiError?.let { "⚠️ $it" }
+                            ),
                             isAiLoading = false
                         )
                     } else current
