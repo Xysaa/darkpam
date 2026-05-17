@@ -1,5 +1,8 @@
 package com.example.nutriscan.domain.repository
 
+import com.example.nutriscan.domain.model.Product
+import com.example.nutriscan.domain.model.UserProfile
+
 interface AIRepository {
     suspend fun summarize(text: String): Result<String>
     suspend fun generateIdeas(topic: String): Result<List<String>>
@@ -7,6 +10,12 @@ interface AIRepository {
     suspend fun translate(text: String, targetLanguage: String): Result<String>
     suspend fun chat(message: String): Result<String>
     suspend fun suggestTitle(content: String): Result<String>
+
+    /**
+     * Minta Gemini memberi saran nutrisi personal berdasarkan data produk
+     * dan kondisi kesehatan pengguna.
+     */
+    suspend fun analyzeNutrition(product: Product, user: UserProfile): Result<String>
 }
 
 enum class WritingStyle(val displayName: String, val prompt: String) {

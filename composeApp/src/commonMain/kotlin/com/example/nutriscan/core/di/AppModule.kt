@@ -7,10 +7,13 @@ import com.example.nutriscan.data.local.datastore.DataStoreFactory
 import com.example.nutriscan.data.local.datastore.UserPreferences
 import com.example.nutriscan.data.local.datastore.create
 import com.example.nutriscan.data.remote.api.GeminiService
+import com.example.nutriscan.data.remote.api.OpenFoodFactsService
 import com.example.nutriscan.data.repository.AIRepositoryImpl
+import com.example.nutriscan.data.repository.ProductRepositoryImpl
 import com.example.nutriscan.data.repository.ScanHistoryRepositoryImpl
 import com.example.nutriscan.data.repository.UserProfileRepositoryImpl
 import com.example.nutriscan.domain.repository.AIRepository
+import com.example.nutriscan.domain.repository.ProductRepository
 import com.example.nutriscan.domain.repository.ScanHistoryRepository
 import com.example.nutriscan.domain.repository.UserProfileRepository
 import com.example.nutriscan.domain.usecase.AnalyzeNutritionUseCase
@@ -24,6 +27,7 @@ import com.example.nutriscan.presentation.screens.home.HomeViewModel
 import com.example.nutriscan.presentation.screens.onboarding.OnboardingViewModel
 import com.example.nutriscan.presentation.screens.profile.ProfileViewModel
 import com.example.nutriscan.presentation.screens.result.ResultViewModel
+import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModel
@@ -31,13 +35,13 @@ import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.KoinAppDeclaration
 import org.koin.dsl.bind
 import org.koin.dsl.module
-import org.koin.core.context.startKoin
 
 // ==================== NETWORK MODULE ====================
 
 val networkModule = module {
     single { HttpClientFactory.create(enableLogging = true) }
     singleOf(::GeminiService)
+    singleOf(::OpenFoodFactsService)
 }
 
 // ==================== DATABASE MODULE ====================
@@ -59,9 +63,10 @@ val preferencesModule = module {
 // ==================== REPOSITORY MODULE ====================
 
 val repositoryModule = module {
-    singleOf(::UserProfileRepositoryImpl) bind UserProfileRepository::class
-    singleOf(::ScanHistoryRepositoryImpl) bind ScanHistoryRepository::class
-    singleOf(::AIRepositoryImpl)          bind AIRepository::class
+    singleOf(::UserProfileRepositoryImpl)  bind UserProfileRepository::class
+    singleOf(::ScanHistoryRepositoryImpl)  bind ScanHistoryRepository::class
+    singleOf(::AIRepositoryImpl)           bind AIRepository::class
+    singleOf(::ProductRepositoryImpl)      bind ProductRepository::class
 }
 
 // ==================== USE CASE MODULE ====================
@@ -82,13 +87,15 @@ val viewModelModule = module {
     viewModelOf(::HomeViewModel)
     viewModelOf(::ProfileViewModel)
     viewModelOf(::HistoryViewModel)
-    // ResultViewModel receives barcode as parameter — use parametersOf at call site
+    // ResultViewModel menerima barcode sebagai parameter — gunakan parametersOf di call site
     viewModel { params ->
         ResultViewModel(
-            barcode                = params.get(),
-            userProfileRepository  = get(),
-            scanHistoryRepository  = get(),
-            analyzeNutritionUseCase = get()
+            barcode                 = params.get(),
+            userProfileRepository   = get(),
+            scanHistoryRepository   = get(),
+            productRepository       = get(),
+            analyzeNutritionUseCase = get(),
+            aiRepository            = get()
         )
     }
 }
