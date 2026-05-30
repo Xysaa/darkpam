@@ -53,11 +53,13 @@ fun GradientHeader(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            // Reserve the status-bar area ABOVE the gradient so the system
+            // status bar (clock/icons) sits on a clean background, not on top
+            // of the header.
+            .statusBarsPadding()
             .softShadow(elevation = 8.dp, shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp), alpha = 0.25f)
             .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
             .background(brush)
-            // Push content below the status bar / notch (edge-to-edge).
-            .statusBarsPadding()
             .padding(horizontal = 20.dp, vertical = 20.dp)
     ) {
         Column {
