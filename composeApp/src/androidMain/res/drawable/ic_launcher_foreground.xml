@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Foreground for the adaptive launcher icon. Symbol only (barcode + leaf sprout
+  + scan line + corner brackets), centered inside the adaptive "safe zone" so it
+  is never stretched or clipped by the launcher mask.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Everything sits in the central safe area (~36..72). -->
+    <group android:name="logo" android:translateX="0" android:translateY="0">
+
+        <!-- ===== Scan frame corner brackets (white) ===== -->
+        <!-- Top-left -->
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M40,38 h9 a1.8,1.8 0 0 1 0,3.6 h-7.2 v7.2 a1.8,1.8 0 0 1 -3.6,0 v-9 a1.8,1.8 0 0 1 1.8,-1.8 z" />
+        <!-- Top-right -->
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M68,38 h-9 a1.8,1.8 0 0 0 0,3.6 h7.2 v7.2 a1.8,1.8 0 0 0 3.6,0 v-9 a1.8,1.8 0 0 0 -1.8,-1.8 z" />
+        <!-- Bottom-left -->
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M40,70 h9 a1.8,1.8 0 0 0 0,-3.6 h-7.2 v-7.2 a1.8,1.8 0 0 0 -3.6,0 v9 a1.8,1.8 0 0 0 1.8,1.8 z" />
+        <!-- Bottom-right -->
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M68,70 h-9 a1.8,1.8 0 0 1 0,-3.6 h7.2 v-7.2 a1.8,1.8 0 0 1 3.6,0 v9 a1.8,1.8 0 0 1 -1.8,1.8 z" />
+
+        <!-- ===== Barcode bars (white) ===== -->
+        <path android:fillColor="#FFFFFFFF" android:pathData="M43,45 h1.8 v18 h-1.8 z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M46.4,45 h1.1 v18 h-1.1 z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M49,45 h2.4 v18 h-2.4 z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M52.6,45 h1.1 v18 h-1.1 z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M55,45 h1.8 v18 h-1.8 z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M58,45 h1 v18 h-1 z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M60.4,45 h2.1 v18 h-2.1 z" />
+
+        <!-- ===== Leaf sprout overlapping the barcode ===== -->
+        <!-- stem -->
+        <path android:fillColor="#FF0E8A63"
+            android:pathData="M53.4,63 C52.6,57.5 52.6,53.5 54,50 h1.4 C54,54 54.8,58.5 54.8,63 z" />
+        <!-- left leaf -->
+        <path android:pathData="M53.4,55.5 C48.6,54 45,49.6 45.8,44.6 C50.6,45.6 54.2,49.4 54.2,54.4 C54.2,55.2 53.9,55.6 53.4,55.5 z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear"
+                    android:startX="45" android:startY="44" android:endX="54" android:endY="56">
+                    <item android:offset="0.0" android:color="#FFEAFBF3" />
+                    <item android:offset="1.0" android:color="#FFB9F1DC" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <!-- right leaf -->
+        <path android:pathData="M55.6,52 C56.4,46.4 60.6,42.2 65.4,42.2 C65.4,47.8 61.8,52 56.8,52.8 C56,52.8 55.5,52.6 55.6,52 z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear"
+                    android:startX="56" android:startY="42" android:endX="65" android:endY="53">
+                    <item android:offset="0.0" android:color="#FFFFFFFF" />
+                    <item android:offset="1.0" android:color="#FFC9F4E1" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- ===== Scan line (cyan glow) ===== -->
+        <path android:fillColor="#553FD0E8" android:pathData="M38,53 h32 v3.6 h-32 z" />
+        <path android:fillColor="#FF45D6EC" android:pathData="M38,54 h32 v1.6 a0.8,0.8 0 0 1 -0.8,0.8 h-30.4 a0.8,0.8 0 0 1 -0.8,-0.8 z" />
+    </group>
+</vector>
