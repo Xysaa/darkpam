@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -82,9 +82,11 @@ fun NutriBottomBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(BarHeight)
             .softShadow(elevation = 14.dp, shape = RoundedCornerShape(0.dp), alpha = 0.18f)
             .background(MaterialTheme.colorScheme.surface)
+            // Keep the bar above the system navigation buttons (edge-to-edge).
+            .navigationBarsPadding()
+            .height(BarHeight)
     ) {
         Row(
             modifier = Modifier
@@ -99,18 +101,15 @@ fun NutriBottomBar(
 
             firstHalf.forEach { tab -> BarItem(Modifier.weight(1f), tab, currentRouteName, onSelect) }
             if (withCenterGap) {
-                Spacer(Modifier.weight(1f)) // reserved space under the Scan button
+                // Center slot hosting the raised Scan button (fully inside the bar).
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (onScanClick != null) ScanFab(onClick = onScanClick)
+                }
                 secondHalf.forEach { tab -> BarItem(Modifier.weight(1f), tab, currentRouteName, onSelect) }
             }
-        }
-
-        if (withCenterGap && onScanClick != null) {
-            ScanFab(
-                onClick = onScanClick,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-14).dp)
-            )
         }
     }
 }

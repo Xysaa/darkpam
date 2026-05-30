@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,6 +56,8 @@ fun GradientHeader(
             .softShadow(elevation = 8.dp, shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp), alpha = 0.25f)
             .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
             .background(brush)
+            // Push content below the status bar / notch (edge-to-edge).
+            .statusBarsPadding()
             .padding(horizontal = 20.dp, vertical = 20.dp)
     ) {
         Column {
