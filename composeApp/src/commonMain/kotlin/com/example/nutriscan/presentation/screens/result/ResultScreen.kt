@@ -124,8 +124,12 @@ class ResultViewModel(
                 // Use cached scan (offline-first) if we've seen this barcode before.
                 val cached = scanHistoryRepository.getScanByBarcode(barcode)
                 if (cached != null) {
-                    _uiState.value = ResultUiState.Success(cached.product, profile, cached.analysis)
-                    fetchAiAdvice(cached.product, profile, cached.analysis)
+                    // Recompute the analysis so the full nutrient breakdown
+                    // (allNutrients) is present — the cached row only stores the
+                    // overall status, not the per-nutrient detail.
+                    val analysis = analyzeNutritionUseCase(cached.product, profile)
+                    _uiState.value = ResultUiState.Success(cached.product, profile, analysis)
+                    fetchAiAdvice(cached.product, profile, analysis)
                     return@launch
                 }
 
@@ -439,13 +443,19 @@ private fun ResultContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Nutrient bars
-        if (analysis.warnings.isNotEmpty()) {
+        // Nutrient bars — full breakdown of every analysed nutrient.
+        val detailNutrients = analysis.allNutrients.ifEmpty { analysis.warnings }
+        if (detailNutrients.isNotEmpty()) {
             SoftCard(modifier = Modifier.fillMaxWidth()) {
                 Text("Detail Nutrisi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "Per sajian ${product.servingSize.format1()}g",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(Modifier.height(14.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    analysis.warnings.forEach { w ->
+                    detailNutrients.forEach { w ->
                         NutrientBar(
                             label = w.nutrientName,
                             value = w.valuePerServing,

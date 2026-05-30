@@ -24,14 +24,25 @@ data class NutrientWarning(
 /** Full analysis result attached to a scan */
 data class NutritionAnalysis(
     val overallStatus: NutritionStatus,
+    /** Only the nutrients that triggered CAUTION/AVOID (used for warnings). */
     val warnings: List<NutrientWarning> = emptyList(),
+    /** Every analysed nutrient (SAFE included) for the full detail breakdown. */
+    val allNutrients: List<NutrientWarning> = emptyList(),
     val aiSuggestion: String? = null       // populated by Gemini (Sprint 3+)
 ) {
     val warningMessages: List<String>
         get() = warnings
             .filter { it.status != NutritionStatus.SAFE }
             .map { w ->
-                "${w.nutrientName}: ${w.valuePerServing}${w.unit}/sajian " +
+                "${w.nutrientName}: ${format1(w.valuePerServing)}${w.unit}/sajian " +
                 "(${w.percentDailyValue.toInt()}% AKG) — ${w.status.displayName}"
             }
+}
+
+private fun format1(value: Float): String {
+    val rounded = kotlin.math.round(value * 10f) / 10f
+    if (rounded % 1f == 0f) return rounded.toInt().toString()
+    val tenths = kotlin.math.round(kotlin.math.abs(rounded) * 10f).toInt()
+    val sign = if (rounded < 0f) "-" else ""
+    return "$sign${tenths / 10}.${tenths % 10}"
 }

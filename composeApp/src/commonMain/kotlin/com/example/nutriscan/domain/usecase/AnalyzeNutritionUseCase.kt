@@ -47,6 +47,7 @@ class AnalyzeNutritionUseCase {
         warnings += nutrientWarning("Gula",             serving.sugar,       "g",    dailyValues.sugar,         false)
         warnings += nutrientWarning("Natrium",          serving.sodium,      "mg",   dailyValues.sodium,        false)
         warnings += nutrientWarning("Protein",          serving.protein,     "g",    dailyValues.protein,       false)
+        warnings += nutrientWarning("Karbohidrat",      serving.carbs,       "g",    dailyValues.carbs,         false)
 
         val overallStatus = when {
             warnings.any { it.status == NutritionStatus.AVOID }   -> NutritionStatus.AVOID
@@ -56,7 +57,8 @@ class AnalyzeNutritionUseCase {
 
         return NutritionAnalysis(
             overallStatus = overallStatus,
-            warnings      = warnings.filter { it.status != NutritionStatus.SAFE }
+            warnings      = warnings.filter { it.status != NutritionStatus.SAFE },
+            allNutrients  = warnings.toList()
         )
     }
 
