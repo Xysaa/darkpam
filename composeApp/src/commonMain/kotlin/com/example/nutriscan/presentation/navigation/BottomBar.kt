@@ -2,14 +2,24 @@ package com.example.nutriscan.presentation.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.outlined.Forum
@@ -18,16 +28,15 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.nutriscan.presentation.theme.AppGradients
 import com.example.nutriscan.presentation.theme.softShadow
@@ -52,9 +61,15 @@ val NutritionistTabs = listOf(
     TabItem(Route.Profile, "Profile", "Profil", Icons.Filled.Person, Icons.Outlined.Person),
 )
 
+private val BarHeight = 66.dp
+
 /**
- * Bottom navigation bar. When [withCenterGap] is true, a blank slot is reserved
- * in the middle (between item 2 and 3) for the floating Scan button.
+ * Self-contained, fixed-height bottom navigation bar.
+ *
+ * Built as a plain Box/Row (instead of Material's NavigationBar) so that its
+ * height is always exactly [BarHeight] inside a Scaffold's bottomBar slot. When
+ * [withCenterGap] is true a gap is left in the middle and a raised Scan button
+ * is overlaid on top, poking slightly above the bar.
  */
 @Composable
 fun NutriBottomBar(
@@ -64,65 +79,83 @@ fun NutriBottomBar(
     withCenterGap: Boolean = false,
     onScanClick: (() -> Unit)? = null
 ) {
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(BarHeight)
+            .softShadow(elevation = 14.dp, shape = RoundedCornerShape(0.dp), alpha = 0.18f)
+            .background(MaterialTheme.colorScheme.surface)
     ) {
-        val firstHalf = if (withCenterGap) tabs.take(2) else tabs
-        val secondHalf = if (withCenterGap) tabs.drop(2) else emptyList()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(BarHeight)
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            val firstHalf = if (withCenterGap) tabs.take(2) else tabs
+            val secondHalf = if (withCenterGap) tabs.drop(2) else emptyList()
 
-        firstHalf.forEach { tab -> BarItem(tab, currentRouteName, onSelect) }
-        if (withCenterGap) {
-            // Center slot hosting the raised Scan button.
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-                contentAlignment = Alignment.Center
-            ) {
-                ScanFab(onClick = { onScanClick?.invoke() })
+            firstHalf.forEach { tab -> BarItem(Modifier.weight(1f), tab, currentRouteName, onSelect) }
+            if (withCenterGap) {
+                Spacer(Modifier.weight(1f)) // reserved space under the Scan button
+                secondHalf.forEach { tab -> BarItem(Modifier.weight(1f), tab, currentRouteName, onSelect) }
             }
-            secondHalf.forEach { tab -> BarItem(tab, currentRouteName, onSelect) }
+        }
+
+        if (withCenterGap && onScanClick != null) {
+            ScanFab(
+                onClick = onScanClick,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-14).dp)
+            )
         }
     }
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.BarItem(
+private fun BarItem(
+    modifier: Modifier,
     tab: TabItem,
     currentRouteName: String?,
     onSelect: (Route) -> Unit
 ) {
     val selected = currentRouteName == tab.name
-    NavigationBarItem(
-        selected = selected,
-        onClick = { if (!selected) onSelect(tab.route) },
-        icon = {
-            Icon(
-                imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
-                contentDescription = tab.label
-            )
-        },
-        label = {
-            Text(
-                text = tab.label,
-                maxLines = 1,
-                softWrap = false,
-                style = MaterialTheme.typography.labelSmall
-            )
-        },
-        alwaysShowLabel = true,
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = MaterialTheme.colorScheme.primary,
-            selectedTextColor = MaterialTheme.colorScheme.primary,
-            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val contentColor = if (selected) MaterialTheme.colorScheme.primary
+    else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { if (!selected) onSelect(tab.route) },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+            contentDescription = tab.label,
+            tint = contentColor,
+            modifier = Modifier.size(24.dp)
         )
-    )
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = tab.label,
+            maxLines = 1,
+            softWrap = false,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = contentColor
+        )
+    }
 }
 
-/** The raised, gradient Scan button that floats in the centre of the bottom bar. */
+/** The raised, gradient Scan button that sits in the centre of the bottom bar. */
 @Composable
 fun ScanFab(
     onClick: () -> Unit,
@@ -130,7 +163,7 @@ fun ScanFab(
 ) {
     Box(
         modifier = modifier
-            .size(54.dp)
+            .size(56.dp)
             .softShadow(elevation = 12.dp, shape = CircleShape, alpha = 0.4f)
             .clip(CircleShape)
             .background(AppGradients.brand)
@@ -141,7 +174,7 @@ fun ScanFab(
             imageVector = Icons.Filled.QrCodeScanner,
             contentDescription = "Scan Barcode",
             tint = Color.White,
-            modifier = Modifier.size(26.dp)
+            modifier = Modifier.size(27.dp)
         )
     }
 }
