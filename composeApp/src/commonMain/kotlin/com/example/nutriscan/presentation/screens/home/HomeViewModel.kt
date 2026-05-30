@@ -101,7 +101,8 @@ class HomeViewModel(
         }
 
         return HomeDashboard(
-            userName = userName.ifBlank { "Pengguna" },
+            userName = profile?.name?.takeIf { it.isNotBlank() }
+                ?: userName.ifBlank { "Pengguna" },
             profile = profile,
             recentScans = scans.take(5),
             totalScans = scans.size,

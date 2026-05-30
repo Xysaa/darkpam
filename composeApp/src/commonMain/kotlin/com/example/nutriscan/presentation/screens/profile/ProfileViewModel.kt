@@ -69,10 +69,19 @@ class ProfileViewModel(
         editForm,
         message
     ) { session, dark, profile, form, msg ->
+        // For a regular user the displayed name should come from their
+        // onboarding profile (login name is optional). Nutritionists have no
+        // profile, so they keep the login name.
+        val displayName = when {
+            session.role == UserRole.USER && profile != null && profile.name.isNotBlank() ->
+                profile.name
+            session.userName.isNotBlank() -> session.userName
+            else -> session.role.displayName
+        }
         ProfileUiState(
             loading = false,
             role = session.role,
-            userName = session.userName,
+            userName = displayName,
             coins = session.coins,
             darkMode = dark,
             profile = profile,

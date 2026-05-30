@@ -6,6 +6,7 @@ import com.example.nutriscan.domain.model.Conversation
 import com.example.nutriscan.domain.model.Nutritionist
 import com.example.nutriscan.domain.repository.ConsultationRepository
 import com.example.nutriscan.domain.repository.SessionRepository
+import com.example.nutriscan.domain.repository.UserProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +25,8 @@ data class ConsultationUiState(
 
 class ConsultationViewModel(
     private val consultationRepository: ConsultationRepository,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val userProfileRepository: UserProfileRepository
 ) : ViewModel() {
 
     private val error = MutableStateFlow<String?>(null)
@@ -32,13 +34,17 @@ class ConsultationViewModel(
     val uiState: StateFlow<ConsultationUiState> = combine(
         sessionRepository.state,
         consultationRepository.observeConversations(),
+        userProfileRepository.getProfile(),
         error
-    ) { session, conversations, err ->
+    ) { session, conversations, profile, err ->
+        // Prefer the onboarding profile name for users (login name is optional).
+        val userName = profile?.name?.takeIf { it.isNotBlank() }
+            ?: session.userName.ifBlank { "Pengguna" }
         ConsultationUiState(
             coins = session.coins,
-            userName = session.userName,
+            userName = userName,
             nutritionists = consultationRepository.getNutritionists(),
-            conversations = conversations.filter { it.userName == session.userName },
+            conversations = conversations.filter { it.userName == userName },
             errorMessage = err
         )
     }.catch {
