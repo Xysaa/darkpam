@@ -1,5 +1,6 @@
 package com.example.nutriscan.presentation.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -29,6 +30,7 @@ fun NutritionistApp(
     val isMainTab = currentName in NutritionistTabs.map { it.name }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (isMainTab) {
                 NutriBottomBar(

@@ -1,5 +1,6 @@
 package com.example.nutriscan.presentation.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -34,6 +35,10 @@ fun UserApp(
     val isMainTab = currentName in UserTabs.map { it.name }
 
     Scaffold(
+        // Headers handle the status bar; the bottom bar handles the navigation
+        // bar. Disable Scaffold's automatic insets so they aren't double-counted
+        // (which previously caused a gap above the keyboard in chat).
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (isMainTab) {
                 NutriBottomBar(
