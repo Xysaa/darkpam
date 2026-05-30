@@ -1,6 +1,8 @@
 package com.example.nutriscan.presentation.screens.result
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,23 +12,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,29 +39,33 @@ import com.example.nutriscan.domain.repository.ScanHistoryRepository
 import com.example.nutriscan.domain.repository.UserProfileRepository
 import com.example.nutriscan.domain.usecase.AnalyzeNutritionUseCase
 import com.example.nutriscan.presentation.components.ErrorMessage
+import com.example.nutriscan.presentation.components.GradientHeader
 import com.example.nutriscan.presentation.components.LoadingIndicator
 import com.example.nutriscan.presentation.components.NutrientBar
-import com.example.nutriscan.presentation.components.StatusChip
+import com.example.nutriscan.presentation.components.SoftCard
+import com.example.nutriscan.presentation.components.StatusBadgeLarge
+import com.example.nutriscan.presentation.theme.AppGradients
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+import androidx.compose.ui.graphics.Color
+import kotlin.math.roundToInt
 
 // ==================== UI STATE + VIEWMODEL ====================
 
 sealed interface ResultUiState {
     data object Loading : ResultUiState
-    data class  Success(
-        val product:  Product,
-        val profile:  UserProfile,
+    data class Success(
+        val product: Product,
+        val profile: UserProfile,
         val analysis: NutritionAnalysis
     ) : ResultUiState
-    data class  NoProfile(val barcode: String) : ResultUiState
-    data class  Error(val message: String) : ResultUiState
+    data class NoProfile(val barcode: String) : ResultUiState
+    data class Error(val message: String) : ResultUiState
 }
 
 class ResultViewModel(
@@ -78,40 +83,26 @@ class ResultViewModel(
     private fun loadResult() {
         viewModelScope.launch {
             try {
-                // Check profile first
                 val profile = userProfileRepository.getProfile().first()
                 if (profile == null) {
                     _uiState.value = ResultUiState.NoProfile(barcode)
                     return@launch
                 }
 
-                // Check if we already have this barcode cached in history
                 val cached = scanHistoryRepository.getScanById(barcode.toLongOrNull() ?: -1L)
-
                 if (cached != null) {
-                    _uiState.value = ResultUiState.Success(
-                        product  = cached.product,
-                        profile  = profile,
-                        analysis = cached.analysis
-                    )
+                    _uiState.value = ResultUiState.Success(cached.product, profile, cached.analysis)
                     return@launch
                 }
 
-                // Placeholder product — Sprint 3 will fetch from OpenFoodFacts API
                 val product = Product(
-                    barcode  = barcode,
-                    name     = "Memuat produk...",
-                    brand    = "",
+                    barcode = barcode,
+                    name = "Memuat produk...",
+                    brand = "",
                     imageUrl = ""
                 )
-
                 val analysis = analyzeNutritionUseCase(product, profile)
-
-                _uiState.value = ResultUiState.Success(
-                    product  = product,
-                    profile  = profile,
-                    analysis = analysis
-                )
+                _uiState.value = ResultUiState.Success(product, profile, analysis)
             } catch (e: Exception) {
                 _uiState.value = ResultUiState.Error(e.message ?: "Terjadi kesalahan")
             }
@@ -126,70 +117,58 @@ class ResultViewModel(
 
 // ==================== SCREEN ====================
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ResultScreen(
     barcode: String,
     onNavigateBack: () -> Unit,
-    onNavigateToProfile: () -> Unit,
     viewModel: ResultViewModel = koinViewModel(parameters = { parametersOf(barcode) })
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Hasil Scan") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
-                    }
-                }
-            )
-        }
-    ) { padding ->
+    Column(modifier = Modifier.fillMaxSize()) {
+        GradientHeader(
+            title = "Hasil Scan",
+            subtitle = "Analisis nutrisi produk",
+            onBack = onNavigateBack
+        )
+
         when (val state = uiState) {
             is ResultUiState.Loading -> LoadingIndicator()
 
-            is ResultUiState.NoProfile -> {
-                Column(
-                    modifier            = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Outlined.Person,
-                        contentDescription = null,
-                        modifier           = Modifier.size(64.dp),
-                        tint               = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        "Profil diperlukan untuk analisis",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Lengkapi profil Anda agar NutriScan bisa memberikan analisis yang dipersonalisasi.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            is ResultUiState.NoProfile -> NoProfileContent()
 
-            is ResultUiState.Error -> ErrorMessage(
-                message  = state.message,
-                modifier = Modifier.padding(padding),
-                onRetry  = viewModel::retry
-            )
+            is ResultUiState.Error -> ErrorMessage(message = state.message, onRetry = viewModel::retry)
 
             is ResultUiState.Success -> ResultContent(
-                product  = state.product,
-                profile  = state.profile,
-                analysis = state.analysis,
-                modifier = Modifier.padding(padding)
+                product = state.product,
+                profile = state.profile,
+                analysis = state.analysis
             )
         }
+    }
+}
+
+@Composable
+private fun NoProfileContent() {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(28.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            Icons.Filled.Person,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(64.dp)
+        )
+        Spacer(Modifier.height(16.dp))
+        Text("Profil diperlukan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Lengkapi profil agar NutriScan bisa memberi analisis yang dipersonalisasi.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -197,109 +176,138 @@ fun ResultScreen(
 private fun ResultContent(
     product: Product,
     profile: UserProfile,
-    analysis: NutritionAnalysis,
-    modifier: Modifier = Modifier
+    analysis: NutritionAnalysis
 ) {
-    val serving = product.nutrimentsPerServing
-    val n       = serving  // alias
-
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // ── Product header ───────────────────────────────────────────────────
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(product.displayName, style = MaterialTheme.typography.titleLarge)
-                if (product.brand.isNotBlank()) {
-                    Text(product.brand, style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Product header
+        SoftCard(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Fastfood, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
-                Text("Barcode: ${product.barcode}", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.size(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(product.displayName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    if (product.brand.isNotBlank()) {
+                        Text(product.brand, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        "Barcode: ${product.barcode}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
-        // ── Overall status ───────────────────────────────────────────────────
-        Card(
+        // Overall status
+        SoftCard(
             modifier = Modifier.fillMaxWidth(),
-            colors   = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Row(
-                modifier              = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment     = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text("Status untuk ${profile.name}",
-                        style = MaterialTheme.typography.labelMedium)
-                    Text("Per sajian ${product.servingSize.toInt()}g",
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Status untuk ${profile.name}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Per sajian ${product.servingSize.roundToInt()}g",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                StatusChip(status = analysis.overallStatus)
+                StatusBadgeLarge(status = analysis.overallStatus)
             }
         }
 
-        // ── Nutrient bars ────────────────────────────────────────────────────
+        // Nutrient bars
         if (analysis.warnings.isNotEmpty()) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier            = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Detail Nutrisi", style = MaterialTheme.typography.titleSmall)
-                    analysis.warnings.forEach { warning ->
+            SoftCard(modifier = Modifier.fillMaxWidth()) {
+                Text("Detail Nutrisi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    analysis.warnings.forEach { w ->
                         NutrientBar(
-                            label        = warning.nutrientName,
-                            value        = warning.valuePerServing,
-                            unit         = warning.unit,
-                            percentDaily = warning.percentDailyValue,
-                            status       = warning.status
+                            label = w.nutrientName,
+                            value = w.valuePerServing,
+                            unit = w.unit,
+                            percentDaily = w.percentDailyValue,
+                            status = w.status
                         )
                     }
                 }
             }
         }
 
-        // ── Warnings ─────────────────────────────────────────────────────────
+        // Warnings
         if (analysis.warningMessages.isNotEmpty()) {
-            Card(
+            SoftCard(
                 modifier = Modifier.fillMaxWidth(),
-                colors   = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
+                containerColor = MaterialTheme.colorScheme.errorContainer
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Peringatan", style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer)
-                    Spacer(Modifier.height(8.dp))
-                    analysis.warningMessages.forEach { msg ->
-                        Text("• $msg", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer)
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.WarningAmber,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    Text(
+                        "Peringatan",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                analysis.warningMessages.forEach { msg ->
+                    Text(
+                        "• $msg",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
                 }
             }
         }
 
-        // ── Sprint 3 placeholder ─────────────────────────────────────────────
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors   = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+        // AI suggestion / info
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(AppGradients.brand)
+                .padding(18.dp)
         ) {
-            Text(
-                text     = "ℹ️ Data nutrisi lengkap & saran AI akan tersedia di Sprint 3 setelah integrasi OpenFoodFacts API.",
-                style    = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(16.dp),
-                color    = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Color.White)
+                Spacer(Modifier.size(12.dp))
+                Column {
+                    Text("Saran NutriScan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = analysis.aiSuggestion
+                            ?: "Data nutrisi lengkap & saran AI akan tampil setelah integrasi OpenFoodFacts & Gemini.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.92f)
+                    )
+                }
+            }
         }
+
+        Spacer(Modifier.height(8.dp))
     }
 }

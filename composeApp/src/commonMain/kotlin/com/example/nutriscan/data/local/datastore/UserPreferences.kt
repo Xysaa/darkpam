@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -29,6 +30,16 @@ class UserPreferences(
         val DEFAULT_CATEGORY = stringPreferencesKey("default_category")
         val SHOW_PREVIEW = booleanPreferencesKey("show_preview")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+
+        // ── Session / Auth (dummy local login) ──
+        val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
+        val USER_ROLE    = stringPreferencesKey("user_role")     // "USER" | "NUTRITIONIST"
+        val DISPLAY_NAME = stringPreferencesKey("display_name")
+        val COINS        = intPreferencesKey("coins")
+    }
+
+    companion object {
+        const val DEFAULT_COINS = 100
     }
     
     // ==================== DARK MODE ====================
@@ -119,5 +130,71 @@ class UserPreferences(
         dataStore.edit { prefs ->
             prefs[Keys.ONBOARDING_COMPLETED] = true
         }
+    }
+
+    // ==================== SESSION / AUTH (dummy local login) ====================
+
+    /** Observe whether a (dummy) user is currently logged in. */
+    val isLoggedIn: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[Keys.IS_LOGGED_IN] ?: false
+    }
+
+    /** Observe the selected role: "USER" or "NUTRITIONIST". Defaults to "USER". */
+    val userRole: Flow<String> = dataStore.data.map { prefs ->
+        prefs[Keys.USER_ROLE] ?: "USER"
+    }
+
+    /** Observe the display name chosen at login. */
+    val displayName: Flow<String> = dataStore.data.map { prefs ->
+        prefs[Keys.DISPLAY_NAME] ?: ""
+    }
+
+    /** Observe the coin balance (defaults to [DEFAULT_COINS]). */
+    val coins: Flow<Int> = dataStore.data.map { prefs ->
+        prefs[Keys.COINS] ?: DEFAULT_COINS
+    }
+
+    /** Perform a dummy login with the chosen [role] and [name]. */
+    suspend fun login(role: String, name: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.IS_LOGGED_IN] = true
+            prefs[Keys.USER_ROLE]    = role
+            prefs[Keys.DISPLAY_NAME] = name
+            // Seed coins on first login if not already present
+            if (prefs[Keys.COINS] == null) {
+                prefs[Keys.COINS] = DEFAULT_COINS
+            }
+        }
+    }
+
+    /** Clear the session (keeps coins & onboarding so re-login is seamless). */
+    suspend fun logout() {
+        dataStore.edit { prefs ->
+            prefs[Keys.IS_LOGGED_IN] = false
+        }
+    }
+
+    /** Add [amount] coins (top-up). */
+    suspend fun addCoins(amount: Int) {
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.COINS] ?: DEFAULT_COINS
+            prefs[Keys.COINS] = current + amount
+        }
+    }
+
+    /**
+     * Attempt to spend [amount] coins. Returns true if the balance was
+     * sufficient and the deduction was applied, false otherwise.
+     */
+    suspend fun trySpendCoins(amount: Int): Boolean {
+        var success = false
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.COINS] ?: DEFAULT_COINS
+            if (current >= amount) {
+                prefs[Keys.COINS] = current - amount
+                success = true
+            }
+        }
+        return success
     }
 }

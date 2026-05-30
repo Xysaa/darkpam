@@ -11,16 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.FoodBank
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -31,31 +27,34 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nutriscan.domain.model.Disease
+import com.example.nutriscan.presentation.components.GradientButton
+import com.example.nutriscan.presentation.components.GradientHeader
 import com.example.nutriscan.presentation.components.LoadingIndicator
+import com.example.nutriscan.presentation.components.SelectableChip
+import com.example.nutriscan.presentation.components.SoftCard
 import org.koin.compose.viewmodel.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OnboardingScreen(
     onProfileSaved: () -> Unit,
     viewModel: OnboardingViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val form    by viewModel.form.collectAsStateWithLifecycle()
-
+    val form by viewModel.form.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
 
-    // Navigate away on success
     LaunchedEffect(uiState) {
         when (val state = uiState) {
             is OnboardingUiState.Success -> onProfileSaved()
-            is OnboardingUiState.Error   -> {
+            is OnboardingUiState.Error -> {
                 snackbarHost.showSnackbar(state.message)
                 viewModel.resetError()
             }
@@ -66,134 +65,126 @@ fun OnboardingScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHost) }
     ) { padding ->
-
         if (uiState is OnboardingUiState.Loading) {
             LoadingIndicator()
             return@Scaffold
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(padding)
-                .padding(horizontal = 24.dp, vertical = 32.dp)
-                .imePadding(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // ── Header ──────────────────────────────────────────────────────
-            Icon(
-                imageVector        = Icons.Outlined.FoodBank,
-                contentDescription = null,
-                modifier           = Modifier.size(72.dp),
-                tint               = MaterialTheme.colorScheme.primary
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            GradientHeader(
+                title = "Lengkapi Profil",
+                subtitle = "Agar analisis nutrisi terasa lebih personal"
             )
 
-            Spacer(Modifier.height(8.dp))
-
-            Text("Selamat Datang di NutriScan", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                text  = "Lengkapi profil Anda untuk mendapatkan analisis nutrisi yang dipersonalisasi.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            // ── Name ─────────────────────────────────────────────────────────
-            OutlinedTextField(
-                value         = form.name,
-                onValueChange = viewModel::onNameChange,
-                label         = { Text("Nama Lengkap") },
-                isError       = form.nameError != null,
-                supportingText = form.nameError?.let { { Text(it) } },
-                modifier      = Modifier.fillMaxWidth(),
-                singleLine    = true
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // ── Age ──────────────────────────────────────────────────────────
-            OutlinedTextField(
-                value          = form.age,
-                onValueChange  = viewModel::onAgeChange,
-                label          = { Text("Usia (tahun)") },
-                isError        = form.ageError != null,
-                supportingText = form.ageError?.let { { Text(it) } },
-                modifier       = Modifier.fillMaxWidth(),
-                singleLine     = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // ── Weight + Height (side by side) ───────────────────────────────
-            Row(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+                    .imePadding()
             ) {
-                OutlinedTextField(
-                    value          = form.weight,
-                    onValueChange  = viewModel::onWeightChange,
-                    label          = { Text("Berat (kg)") },
-                    isError        = form.weightError != null,
-                    supportingText = form.weightError?.let { { Text(it) } },
-                    modifier       = Modifier.weight(1f),
-                    singleLine     = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
+                SoftCard(modifier = Modifier.fillMaxWidth()) {
+                    Text("Data Diri", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(14.dp))
 
-                OutlinedTextField(
-                    value          = form.height,
-                    onValueChange  = viewModel::onHeightChange,
-                    label          = { Text("Tinggi (cm)") },
-                    isError        = form.heightError != null,
-                    supportingText = form.heightError?.let { { Text(it) } },
-                    modifier       = Modifier.weight(1f),
-                    singleLine     = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-            }
+                    OutlinedTextField(
+                        value = form.name,
+                        onValueChange = viewModel::onNameChange,
+                        label = { Text("Nama Lengkap") },
+                        isError = form.nameError != null,
+                        supportingText = form.nameError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp)
+                    )
 
-            Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(12.dp))
 
-            // ── Health Conditions ────────────────────────────────────────────
-            Text(
-                text     = "Riwayat Penyakit (opsional)",
-                style    = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = form.age,
+                        onValueChange = viewModel::onAgeChange,
+                        label = { Text("Usia (tahun)") },
+                        isError = form.ageError != null,
+                        supportingText = form.ageError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
 
-            Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(12.dp))
 
-            FlowRow(
-                modifier              = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Disease.entries.forEach { disease ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked         = disease in form.selectedDiseases,
-                            onCheckedChange = { viewModel.onDiseaseToggled(disease) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = form.weight,
+                            onValueChange = viewModel::onWeightChange,
+                            label = { Text("Berat (kg)") },
+                            isError = form.weightError != null,
+                            supportingText = form.weightError?.let { { Text(it) } },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                         )
-                        Text(disease.displayName, style = MaterialTheme.typography.bodyMedium)
+                        OutlinedTextField(
+                            value = form.height,
+                            onValueChange = viewModel::onHeightChange,
+                            label = { Text("Tinggi (cm)") },
+                            isError = form.heightError != null,
+                            supportingText = form.heightError?.let { { Text(it) } },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
                     }
                 }
-            }
 
-            Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(16.dp))
 
-            // ── Submit ───────────────────────────────────────────────────────
-            Button(
-                onClick  = viewModel::saveProfile,
-                enabled  = form.isValid,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                Text("Mulai Pakai NutriScan", style = MaterialTheme.typography.titleMedium)
+                SoftCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        androidx.compose.material3.Icon(
+                            Icons.Filled.MonitorHeart,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Riwayat Penyakit",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        "Opsional — pilih yang sesuai",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Disease.entries.forEach { disease ->
+                            SelectableChip(
+                                text = disease.displayName,
+                                selected = disease in form.selectedDiseases,
+                                onClick = { viewModel.onDiseaseToggled(disease) },
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(24.dp))
+
+                GradientButton(
+                    text = "Mulai Pakai NutriScan",
+                    onClick = viewModel::saveProfile,
+                    enabled = form.isValid,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(24.dp))
             }
         }
     }

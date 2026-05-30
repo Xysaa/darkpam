@@ -8,10 +8,14 @@ import com.example.nutriscan.data.local.datastore.UserPreferences
 import com.example.nutriscan.data.local.datastore.create
 import com.example.nutriscan.data.remote.api.GeminiService
 import com.example.nutriscan.data.repository.AIRepositoryImpl
+import com.example.nutriscan.data.repository.ConsultationRepositoryImpl
 import com.example.nutriscan.data.repository.ScanHistoryRepositoryImpl
+import com.example.nutriscan.data.repository.SessionRepositoryImpl
 import com.example.nutriscan.data.repository.UserProfileRepositoryImpl
 import com.example.nutriscan.domain.repository.AIRepository
+import com.example.nutriscan.domain.repository.ConsultationRepository
 import com.example.nutriscan.domain.repository.ScanHistoryRepository
+import com.example.nutriscan.domain.repository.SessionRepository
 import com.example.nutriscan.domain.repository.UserProfileRepository
 import com.example.nutriscan.domain.usecase.AnalyzeNutritionUseCase
 import com.example.nutriscan.domain.usecase.DeleteUserProfileUseCase
@@ -24,6 +28,10 @@ import com.example.nutriscan.presentation.screens.home.HomeViewModel
 import com.example.nutriscan.presentation.screens.onboarding.OnboardingViewModel
 import com.example.nutriscan.presentation.screens.profile.ProfileViewModel
 import com.example.nutriscan.presentation.screens.result.ResultViewModel
+import com.example.nutriscan.presentation.screens.auth.LoginViewModel
+import com.example.nutriscan.presentation.screens.consultation.ChatViewModel
+import com.example.nutriscan.presentation.screens.consultation.ConsultationViewModel
+import com.example.nutriscan.presentation.screens.consultation.NutritionistDashboardViewModel
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModel
@@ -62,6 +70,8 @@ val repositoryModule = module {
     singleOf(::UserProfileRepositoryImpl) bind UserProfileRepository::class
     singleOf(::ScanHistoryRepositoryImpl) bind ScanHistoryRepository::class
     singleOf(::AIRepositoryImpl)          bind AIRepository::class
+    singleOf(::SessionRepositoryImpl)     bind SessionRepository::class
+    singleOf(::ConsultationRepositoryImpl) bind ConsultationRepository::class
 }
 
 // ==================== USE CASE MODULE ====================
@@ -82,6 +92,9 @@ val viewModelModule = module {
     viewModelOf(::HomeViewModel)
     viewModelOf(::ProfileViewModel)
     viewModelOf(::HistoryViewModel)
+    viewModelOf(::LoginViewModel)
+    viewModelOf(::ConsultationViewModel)
+    viewModelOf(::NutritionistDashboardViewModel)
     // ResultViewModel receives barcode as parameter — use parametersOf at call site
     viewModel { params ->
         ResultViewModel(
@@ -89,6 +102,14 @@ val viewModelModule = module {
             userProfileRepository  = get(),
             scanHistoryRepository  = get(),
             analyzeNutritionUseCase = get()
+        )
+    }
+    // ChatViewModel receives conversationId as parameter
+    viewModel { params ->
+        ChatViewModel(
+            conversationId         = params.get(),
+            consultationRepository = get(),
+            sessionRepository      = get()
         )
     }
 }
