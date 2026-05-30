@@ -19,12 +19,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,21 +38,26 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.example.nutriscan.core.util.format1
+import com.example.nutriscan.domain.model.ConsumptionEntry
 import com.example.nutriscan.domain.model.NutritionAnalysis
 import com.example.nutriscan.domain.model.Product
 import com.example.nutriscan.domain.model.ScanResult
 import com.example.nutriscan.domain.model.UserProfile
 import com.example.nutriscan.domain.repository.AIRepository
+import com.example.nutriscan.domain.repository.ConsumptionRepository
 import com.example.nutriscan.domain.repository.ProductRepository
 import com.example.nutriscan.domain.repository.ScanHistoryRepository
 import com.example.nutriscan.domain.repository.UserProfileRepository
 import com.example.nutriscan.domain.usecase.AnalyzeNutritionUseCase
-import com.example.nutriscan.presentation.components.ErrorMessage
+import com.example.nutriscan.presentation.components.AlertType
+import com.example.nutriscan.presentation.components.GradientButton
 import com.example.nutriscan.presentation.components.GradientHeader
 import com.example.nutriscan.presentation.components.LoadingIndicator
 import com.example.nutriscan.presentation.components.NutrientBar
 import com.example.nutriscan.presentation.components.SoftCard
 import com.example.nutriscan.presentation.components.StatusBadgeLarge
+import com.example.nutriscan.presentation.components.SweetAlertDialog
 import com.example.nutriscan.presentation.theme.AppGradients
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -88,11 +98,17 @@ class ResultViewModel(
     private val scanHistoryRepository: ScanHistoryRepository,
     private val productRepository: ProductRepository,
     private val analyzeNutritionUseCase: AnalyzeNutritionUseCase,
-    private val aiRepository: AIRepository
+    private val aiRepository: AIRepository,
+    private val consumptionRepository: ConsumptionRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ResultUiState>(ResultUiState.Loading)
     val uiState: StateFlow<ResultUiState> = _uiState.asStateFlow()
+
+    /** One-shot signal: set to the logged label after a successful consume,
+     *  consumed by the screen to show a success popup, then cleared. */
+    private val _consumedLabel = MutableStateFlow<String?>(null)
+    val consumedLabel: StateFlow<String?> = _consumedLabel.asStateFlow()
 
     init { loadResult() }
 
@@ -187,6 +203,16 @@ class ResultViewModel(
             fetchAiAdvice(current.product, current.profile, current.analysis)
         }
     }
+
+    /** Log a consumption entry to the daily log (drives Beranda totals). */
+    fun consume(entry: ConsumptionEntry) {
+        viewModelScope.launch {
+            runCatching { consumptionRepository.add(entry) }
+                .onSuccess { _consumedLabel.value = entry.amountLabel }
+        }
+    }
+
+    fun clearConsumedSignal() { _consumedLabel.value = null }
 }
 
 private fun formatBmi(value: Float): String {
@@ -203,6 +229,17 @@ fun ResultScreen(
     viewModel: ResultViewModel = koinViewModel(parameters = { parametersOf(barcode) })
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val consumedLabel by viewModel.consumedLabel.collectAsStateWithLifecycle()
+
+    // Popups shown over the screen content.
+    var showConsumeDialog by remember { mutableStateOf(false) }
+    var showStatusInfo by remember { mutableStateOf(false) }
+
+    // Auto-show the status popup once the product is successfully loaded.
+    val successState = uiState as? ResultUiState.Success
+    LaunchedEffect(successState?.product?.barcode) {
+        if (successState != null) showStatusInfo = true
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         GradientHeader(
@@ -216,17 +253,93 @@ fun ResultScreen(
 
             is ResultUiState.NoProfile -> NoProfileContent()
 
-            is ResultUiState.Error -> ErrorMessage(message = state.message, onRetry = viewModel::retry)
+            // Error is surfaced as a SweetAlert popup (see below); keep a calm
+            // placeholder behind it.
+            is ResultUiState.Error -> Box(modifier = Modifier.fillMaxSize())
 
             is ResultUiState.Success -> ResultContent(
                 product = state.product,
                 profile = state.profile,
                 analysis = state.analysis,
                 ai = state.ai,
-                onRetryAi = viewModel::retryAi
+                onRetryAi = viewModel::retryAi,
+                onConsumeClick = { showConsumeDialog = true }
             )
         }
     }
+
+    // ── Error popup ──────────────────────────────────────────────────────────
+    (uiState as? ResultUiState.Error)?.let { err ->
+        SweetAlertDialog(
+            type = AlertType.ERROR,
+            title = "Produk Tidak Ditemukan",
+            message = err.message,
+            confirmText = "Coba Lagi",
+            onConfirm = viewModel::retry,
+            dismissText = "Kembali",
+            onDismiss = onNavigateBack
+        )
+    }
+
+    // ── Status popup (success / warning) on load ───────────────────────────────
+    if (showStatusInfo && successState != null) {
+        val analysis = successState.analysis
+        val (type, title, message) = statusAlert(successState.product.displayName, analysis)
+        SweetAlertDialog(
+            type = type,
+            title = title,
+            message = message,
+            confirmText = "Mengerti",
+            onConfirm = { showStatusInfo = false }
+        )
+    }
+
+    // ── Consumption dialog ─────────────────────────────────────────────────────
+    if (showConsumeDialog && successState != null) {
+        ConsumptionDialog(
+            product = successState.product,
+            onDismiss = { showConsumeDialog = false },
+            onConfirm = { entry ->
+                showConsumeDialog = false
+                viewModel.consume(entry)
+            }
+        )
+    }
+
+    // ── Consumed success popup ──────────────────────────────────────────────────
+    consumedLabel?.let { label ->
+        SweetAlertDialog(
+            type = AlertType.SUCCESS,
+            title = "Tercatat!",
+            message = "$label ditambahkan ke konsumsi harianmu. Lihat ringkasannya di Beranda.",
+            confirmText = "Selesai",
+            onConfirm = viewModel::clearConsumedSignal
+        )
+    }
+}
+
+/** Map an analysis result to the status popup's type/title/message. */
+private fun statusAlert(
+    productName: String,
+    analysis: NutritionAnalysis
+): Triple<AlertType, String, String> = when (analysis.overallStatus) {
+    com.example.nutriscan.domain.model.NutritionStatus.SAFE -> Triple(
+        AlertType.SUCCESS,
+        "Aman Dikonsumsi",
+        "$productName tergolong aman sesuai profil kesehatanmu. Tetap perhatikan porsinya ya!"
+    )
+    com.example.nutriscan.domain.model.NutritionStatus.CAUTION -> Triple(
+        AlertType.WARNING,
+        "Perlu Perhatian",
+        analysis.warningMessages.firstOrNull()
+            ?: "$productName perlu diperhatikan. Batasi porsinya agar tetap sesuai kebutuhan harianmu."
+    )
+    com.example.nutriscan.domain.model.NutritionStatus.AVOID -> Triple(
+        AlertType.ERROR,
+        "Sebaiknya Dihindari",
+        analysis.warningMessages.firstOrNull()
+            ?: "$productName sebaiknya dihindari sesuai kondisi kesehatanmu."
+    )
 }
 
 @Composable
@@ -259,7 +372,8 @@ private fun ResultContent(
     profile: UserProfile,
     analysis: NutritionAnalysis,
     ai: AiAdviceState,
-    onRetryAi: () -> Unit
+    onRetryAi: () -> Unit,
+    onConsumeClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -308,7 +422,7 @@ private fun ResultContent(
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Status untuk ${profile.name}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(
-                        "Per sajian ${product.servingSize.roundToInt()}g",
+                        "Per sajian ${product.servingSize.format1()}g",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -316,6 +430,14 @@ private fun ResultContent(
                 StatusBadgeLarge(status = analysis.overallStatus)
             }
         }
+
+        // Consume CTA — user decides the portion before it counts toward daily totals.
+        GradientButton(
+            text = "Catat Konsumsi",
+            onClick = onConsumeClick,
+            leadingIcon = Icons.Filled.Restaurant,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         // Nutrient bars
         if (analysis.warnings.isNotEmpty()) {

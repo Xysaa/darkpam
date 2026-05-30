@@ -2,9 +2,11 @@ package com.example.nutriscan.presentation.screens.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.nutriscan.domain.model.ConsumptionEntry
 import com.example.nutriscan.domain.model.NutritionStatus
 import com.example.nutriscan.domain.model.ScanResult
 import com.example.nutriscan.domain.model.UserProfile
+import com.example.nutriscan.domain.repository.ConsumptionRepository
 import com.example.nutriscan.domain.repository.ScanHistoryRepository
 import com.example.nutriscan.domain.repository.SessionRepository
 import com.example.nutriscan.domain.repository.UserProfileRepository
@@ -13,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.Instant
@@ -21,11 +24,11 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.todayIn
 import kotlinx.datetime.toLocalDateTime
-import kotlinx.datetime.Clock
 
 // ==================== UI STATE ====================
 
-data class DayCount(val label: String, val count: Int, val isToday: Boolean)
+/** A day's calorie total for the weekly chart. */
+data class DayCalories(val label: String, val calories: Float, val isToday: Boolean)
 
 data class HomeDashboard(
     val userName: String = "",
@@ -36,8 +39,10 @@ data class HomeDashboard(
     val todaySugar: Float = 0f,
     val todaySodium: Float = 0f,
     val todayFat: Float = 0f,
+    val todayProtein: Float = 0f,
     val calorieTarget: Float = 2000f,
-    val weekly: List<DayCount> = emptyList(),
+    val weekly: List<DayCalories> = emptyList(),
+    val todayEntries: List<ConsumptionEntry> = emptyList(),
     val safeCount: Int = 0,
     val cautionCount: Int = 0,
     val avoidCount: Int = 0
@@ -57,15 +62,17 @@ sealed interface HomeUiState {
 class HomeViewModel(
     private val scanHistoryRepository: ScanHistoryRepository,
     private val userProfileRepository: UserProfileRepository,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val consumptionRepository: ConsumptionRepository
 ) : ViewModel() {
 
     val uiState: StateFlow<HomeUiState> = combine(
         scanHistoryRepository.getAllHistory(),
         userProfileRepository.getProfile(),
-        sessionRepository.state
-    ) { scans, profile, session ->
-        HomeUiState.Ready(buildDashboard(scans, profile, session.userName)) as HomeUiState
+        sessionRepository.state,
+        consumptionRepository.observeAll()
+    ) { scans, profile, session, consumption ->
+        HomeUiState.Ready(buildDashboard(scans, profile, session.userName, consumption)) as HomeUiState
     }
         .catch { e -> emit(HomeUiState.Error(e.message ?: "Terjadi kesalahan")) }
         .stateIn(
@@ -77,7 +84,8 @@ class HomeViewModel(
     private fun buildDashboard(
         scans: List<ScanResult>,
         profile: UserProfile?,
-        userName: String
+        userName: String,
+        consumption: List<ConsumptionEntry>
     ): HomeDashboard {
         val tz = TimeZone.currentSystemDefault()
         val today = Clock.System.todayIn(tz)
@@ -85,19 +93,21 @@ class HomeViewModel(
         fun dateOf(epoch: Long): LocalDate =
             Instant.fromEpochMilliseconds(epoch).toLocalDateTime(tz).date
 
-        val todayScans = scans.filter { it.scannedAt != 0L && dateOf(it.scannedAt) == today }
-
-        var cal = 0f; var sugar = 0f; var sodium = 0f; var fat = 0f
-        todayScans.forEach {
-            val n = it.product.nutrimentsPerServing
-            cal += n.calories; sugar += n.sugar; sodium += n.sodium; fat += n.fat
+        // ── Today's consumed nutrition (sum over today's consumption entries) ──
+        val todayEntries = consumption.filter { it.consumedAt != 0L && dateOf(it.consumedAt) == today }
+        var cal = 0f; var sugar = 0f; var sodium = 0f; var fat = 0f; var protein = 0f
+        todayEntries.forEach {
+            cal += it.calories; sugar += it.sugar; sodium += it.sodium; fat += it.fat; protein += it.protein
         }
 
-        // Last 7 days bar data (oldest -> newest)
+        // ── Weekly calories (oldest -> newest) from consumption ──
         val weekly = (6 downTo 0).map { offset ->
             val day = today.minus(offset, DateTimeUnit.DAY)
-            val count = scans.count { it.scannedAt != 0L && dateOf(it.scannedAt) == day }
-            DayCount(label = day.dayOfWeek.shortId(), count = count, isToday = offset == 0)
+            val dayCalories = consumption
+                .filter { it.consumedAt != 0L && dateOf(it.consumedAt) == day }
+                .sumOf { it.calories.toDouble() }
+                .toFloat()
+            DayCalories(label = day.dayOfWeek.shortId(), calories = dayCalories, isToday = offset == 0)
         }
 
         return HomeDashboard(
@@ -110,8 +120,10 @@ class HomeViewModel(
             todaySugar = sugar,
             todaySodium = sodium,
             todayFat = fat,
+            todayProtein = protein,
             calorieTarget = profile?.dailyCalorieNeed?.takeIf { it > 0f } ?: 2000f,
             weekly = weekly,
+            todayEntries = todayEntries,
             safeCount = scans.count { it.analysis.overallStatus == NutritionStatus.SAFE },
             cautionCount = scans.count { it.analysis.overallStatus == NutritionStatus.CAUTION },
             avoidCount = scans.count { it.analysis.overallStatus == NutritionStatus.AVOID }

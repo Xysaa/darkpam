@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.nutriscan.core.util.format1
 import com.example.nutriscan.presentation.components.BarEntry
 import com.example.nutriscan.presentation.components.EmptyState
 import com.example.nutriscan.presentation.components.GradientHeader
@@ -45,13 +46,13 @@ import com.example.nutriscan.presentation.components.StatusSlice
 import com.example.nutriscan.presentation.components.WeeklyBarChart
 import com.example.nutriscan.presentation.theme.AppGradients
 import com.example.nutriscan.presentation.theme.NutrientFat
+import com.example.nutriscan.presentation.theme.NutrientProtein
 import com.example.nutriscan.presentation.theme.NutrientSodium
 import com.example.nutriscan.presentation.theme.NutrientSugar
 import com.example.nutriscan.presentation.theme.StatusAvoid
 import com.example.nutriscan.presentation.theme.StatusCaution
 import com.example.nutriscan.presentation.theme.StatusSafe
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreen(
@@ -128,23 +129,60 @@ private fun DashboardContent(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                "${dashboard.todayCalories.roundToInt()}",
+                                dashboard.todayCalories.format1(),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                "/ ${dashboard.calorieTarget.roundToInt()} kkal",
+                                "/ ${dashboard.calorieTarget.format1()} kkal",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                     Spacer(Modifier.size(16.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         MacroStat("Gula", dashboard.todaySugar, "g", NutrientSugar)
                         MacroStat("Garam", dashboard.todaySodium, "mg", NutrientSodium)
                         MacroStat("Lemak", dashboard.todayFat, "g", NutrientFat)
+                        MacroStat("Protein", dashboard.todayProtein, "g", NutrientProtein)
+                    }
+                }
+
+                if (dashboard.todayEntries.isEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Belum ada yang dikonsumsi hari ini. Scan produk lalu tekan \"Catat Konsumsi\".",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        "Dikonsumsi (${dashboard.todayEntries.size})",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    dashboard.todayEntries.take(4).forEach { entry ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                entry.productName,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "${entry.calories.format1()} kkal",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -152,13 +190,13 @@ private fun DashboardContent(
             // ── Consultation promo ──────────────────────────────────────────
             ConsultationPromo(onClick = onOpenConsultation)
 
-            // ── Weekly activity ─────────────────────────────────────────────
+            // ── Weekly calories ─────────────────────────────────────────────
             SoftCard(modifier = Modifier.fillMaxWidth()) {
-                SectionHeader(title = "Aktivitas 7 Hari")
+                SectionHeader(title = "Kalori 7 Hari")
                 Spacer(Modifier.height(16.dp))
                 WeeklyBarChart(
                     data = dashboard.weekly.map {
-                        BarEntry(label = it.label, value = it.count.toFloat(), highlighted = it.isToday)
+                        BarEntry(label = it.label, value = it.calories, highlighted = it.isToday)
                     }
                 )
             }
@@ -231,7 +269,7 @@ private fun MacroStat(label: String, value: Float, unit: String, color: Color) {
         Spacer(Modifier.size(8.dp))
         Column {
             Text(
-                text = "${formatNumber(value)} $unit",
+                text = "${value.format1()} $unit",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -285,9 +323,4 @@ private fun ConsultationPromo(onClick: () -> Unit) {
             )
         }
     }
-}
-
-private fun formatNumber(value: Float): String {
-    val rounded = (value * 10).roundToInt() / 10.0
-    return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()
 }

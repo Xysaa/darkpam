@@ -1,0 +1,47 @@
+-- ConsumptionLog: each row is one "I ate/drank X" entry. The nutriment columns
+-- store the ALREADY-SCALED amounts for the consumed quantity (not per-100g), so
+-- the daily totals on Beranda are a simple SUM over today's rows.
+
+CREATE TABLE ConsumptionEntity (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    barcode       TEXT    NOT NULL DEFAULT '',
+    product_name  TEXT    NOT NULL,
+    -- The amount the user logged, e.g. "1.5 sendok makan" / "200 g"
+    amount_label  TEXT    NOT NULL DEFAULT '',
+    grams         REAL    NOT NULL DEFAULT 0,
+    -- Scaled nutriments for THIS consumption
+    calories      REAL    NOT NULL DEFAULT 0,
+    fat           REAL    NOT NULL DEFAULT 0,
+    sugar         REAL    NOT NULL DEFAULT 0,
+    sodium        REAL    NOT NULL DEFAULT 0,
+    protein       REAL    NOT NULL DEFAULT 0,
+    carbs         REAL    NOT NULL DEFAULT 0,
+    consumed_at   INTEGER NOT NULL
+);
+
+-- All consumption entries, newest first
+getAllConsumption:
+SELECT * FROM ConsumptionEntity
+ORDER BY consumed_at DESC;
+
+-- Entries within a time window [from, to) — used for "today" and weekly stats
+getConsumptionBetween:
+SELECT * FROM ConsumptionEntity
+WHERE consumed_at >= ? AND consumed_at < ?
+ORDER BY consumed_at DESC;
+
+-- Insert a consumption entry
+insertConsumption:
+INSERT INTO ConsumptionEntity (
+    barcode, product_name, amount_label, grams,
+    calories, fat, sugar, sodium, protein, carbs, consumed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Delete a single entry
+deleteConsumptionById:
+DELETE FROM ConsumptionEntity
+WHERE id = ?;
+
+-- Clear all consumption
+clearConsumption:
+DELETE FROM ConsumptionEntity;

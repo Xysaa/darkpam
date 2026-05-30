@@ -10,12 +10,14 @@ import com.example.nutriscan.data.remote.api.GeminiService
 import com.example.nutriscan.data.remote.api.OpenFoodFactsService
 import com.example.nutriscan.data.repository.AIRepositoryImpl
 import com.example.nutriscan.data.repository.ConsultationRepositoryImpl
+import com.example.nutriscan.data.repository.ConsumptionRepositoryImpl
 import com.example.nutriscan.data.repository.ProductRepositoryImpl
 import com.example.nutriscan.data.repository.ScanHistoryRepositoryImpl
 import com.example.nutriscan.data.repository.SessionRepositoryImpl
 import com.example.nutriscan.data.repository.UserProfileRepositoryImpl
 import com.example.nutriscan.domain.repository.AIRepository
 import com.example.nutriscan.domain.repository.ConsultationRepository
+import com.example.nutriscan.domain.repository.ConsumptionRepository
 import com.example.nutriscan.domain.repository.ProductRepository
 import com.example.nutriscan.domain.repository.ScanHistoryRepository
 import com.example.nutriscan.domain.repository.SessionRepository
@@ -77,6 +79,7 @@ val repositoryModule = module {
     singleOf(::SessionRepositoryImpl)     bind SessionRepository::class
     singleOf(::ConsultationRepositoryImpl) bind ConsultationRepository::class
     singleOf(::ProductRepositoryImpl)     bind ProductRepository::class
+    singleOf(::ConsumptionRepositoryImpl) bind ConsumptionRepository::class
 }
 
 // ==================== USE CASE MODULE ====================
@@ -108,7 +111,8 @@ val viewModelModule = module {
             scanHistoryRepository  = get(),
             productRepository      = get(),
             analyzeNutritionUseCase = get(),
-            aiRepository           = get()
+            aiRepository           = get(),
+            consumptionRepository  = get()
         )
     }
     // ChatViewModel receives conversationId as parameter
