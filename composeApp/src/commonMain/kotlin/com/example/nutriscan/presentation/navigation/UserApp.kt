@@ -1,7 +1,6 @@
 package com.example.nutriscan.presentation.navigation
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,16 +40,11 @@ fun UserApp(
                     tabs = UserTabs,
                     currentRouteName = currentName,
                     onSelect = { navController.navigateTab(it) },
-                    withCenterGap = true
+                    withCenterGap = true,
+                    onScanClick = { navController.navigate(Route.Scan) }
                 )
             }
-        },
-        floatingActionButton = {
-            if (isMainTab) {
-                ScanFab(onClick = { navController.navigate(Route.Scan) })
-            }
-        },
-        floatingActionButtonPosition = FabPosition.Center
+        }
     ) { innerPadding ->
         NavHost(
             navController = navController,

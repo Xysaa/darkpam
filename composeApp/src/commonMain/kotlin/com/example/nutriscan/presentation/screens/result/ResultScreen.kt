@@ -1,6 +1,7 @@
 package com.example.nutriscan.presentation.screens.result
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,7 +35,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.example.nutriscan.domain.model.NutritionAnalysis
 import com.example.nutriscan.domain.model.Product
+import com.example.nutriscan.domain.model.ScanResult
 import com.example.nutriscan.domain.model.UserProfile
+import com.example.nutriscan.domain.repository.AIRepository
+import com.example.nutriscan.domain.repository.ProductRepository
 import com.example.nutriscan.domain.repository.ScanHistoryRepository
 import com.example.nutriscan.domain.repository.UserProfileRepository
 import com.example.nutriscan.domain.usecase.AnalyzeNutritionUseCase
@@ -49,6 +53,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -57,12 +62,21 @@ import kotlin.math.roundToInt
 
 // ==================== UI STATE + VIEWMODEL ====================
 
+/** Status of the AI advice request, shown below the analysis. */
+sealed interface AiAdviceState {
+    data object Idle : AiAdviceState
+    data object Loading : AiAdviceState
+    data class Success(val advice: String) : AiAdviceState
+    data class Error(val message: String) : AiAdviceState
+}
+
 sealed interface ResultUiState {
     data object Loading : ResultUiState
     data class Success(
         val product: Product,
         val profile: UserProfile,
-        val analysis: NutritionAnalysis
+        val analysis: NutritionAnalysis,
+        val ai: AiAdviceState = AiAdviceState.Idle
     ) : ResultUiState
     data class NoProfile(val barcode: String) : ResultUiState
     data class Error(val message: String) : ResultUiState
@@ -72,7 +86,9 @@ class ResultViewModel(
     private val barcode: String,
     private val userProfileRepository: UserProfileRepository,
     private val scanHistoryRepository: ScanHistoryRepository,
-    private val analyzeNutritionUseCase: AnalyzeNutritionUseCase
+    private val productRepository: ProductRepository,
+    private val analyzeNutritionUseCase: AnalyzeNutritionUseCase,
+    private val aiRepository: AIRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ResultUiState>(ResultUiState.Loading)
@@ -89,23 +105,74 @@ class ResultViewModel(
                     return@launch
                 }
 
-                val cached = scanHistoryRepository.getScanById(barcode.toLongOrNull() ?: -1L)
+                // Use cached scan (offline-first) if we've seen this barcode before.
+                val cached = scanHistoryRepository.getScanByBarcode(barcode)
                 if (cached != null) {
                     _uiState.value = ResultUiState.Success(cached.product, profile, cached.analysis)
+                    fetchAiAdvice(cached.product, profile, cached.analysis)
                     return@launch
                 }
 
-                val product = Product(
-                    barcode = barcode,
-                    name = "Memuat produk...",
-                    brand = "",
-                    imageUrl = ""
-                )
+                // Fetch real product data from OpenFoodFacts.
+                val product = productRepository.getProduct(barcode).getOrElse { e ->
+                    _uiState.value = ResultUiState.Error(
+                        e.message ?: "Gagal memuat produk. Periksa koneksi internet Anda."
+                    )
+                    return@launch
+                }
+
                 val analysis = analyzeNutritionUseCase(product, profile)
                 _uiState.value = ResultUiState.Success(product, profile, analysis)
+
+                // Persist to history (offline-first cache).
+                runCatching {
+                    scanHistoryRepository.saveScan(ScanResult(product = product, analysis = analysis))
+                }
+
+                fetchAiAdvice(product, profile, analysis)
             } catch (e: Exception) {
                 _uiState.value = ResultUiState.Error(e.message ?: "Terjadi kesalahan")
             }
+        }
+    }
+
+    private fun fetchAiAdvice(product: Product, profile: UserProfile, analysis: NutritionAnalysis) {
+        setAi(AiAdviceState.Loading)
+        viewModelScope.launch {
+            val productSummary = buildString {
+                val n = product.nutrimentsPerServing
+                append("${product.displayName} (${product.brand.ifBlank { "tanpa merek" }}), ")
+                append("per sajian ${product.servingSize.roundToInt()}g: ")
+                append("${n.calories.roundToInt()} kkal, gula ${n.sugar.roundToInt()}g, ")
+                append("garam ${n.sodium.roundToInt()}mg, lemak ${n.fat.roundToInt()}g, ")
+                append("protein ${n.protein.roundToInt()}g, karbo ${n.carbs.roundToInt()}g")
+            }
+            val profileSummary = buildString {
+                append("${profile.name}, usia ${profile.age}, BMI ${formatBmi(profile.bmi)} (${profile.bmiCategory})")
+                if (profile.healthConditions.isNotEmpty()) {
+                    append(", riwayat: ${profile.healthConditions.joinToString { it.displayName }}")
+                }
+            }
+            val analysisSummary = buildString {
+                append("Status keseluruhan: ${analysis.overallStatus.displayName}. ")
+                if (analysis.warningMessages.isNotEmpty()) {
+                    append("Catatan: ${analysis.warningMessages.joinToString("; ")}")
+                } else {
+                    append("Tidak ada peringatan nutrisi yang signifikan.")
+                }
+            }
+
+            aiRepository.nutritionAdvice(productSummary, profileSummary, analysisSummary)
+                .onSuccess { advice -> setAi(AiAdviceState.Success(advice)) }
+                .onFailure { e ->
+                    setAi(AiAdviceState.Error(e.message ?: "Saran AI tidak tersedia saat ini."))
+                }
+        }
+    }
+
+    private fun setAi(state: AiAdviceState) {
+        _uiState.update { current ->
+            if (current is ResultUiState.Success) current.copy(ai = state) else current
         }
     }
 
@@ -113,6 +180,18 @@ class ResultViewModel(
         _uiState.value = ResultUiState.Loading
         loadResult()
     }
+
+    fun retryAi() {
+        val current = _uiState.value
+        if (current is ResultUiState.Success) {
+            fetchAiAdvice(current.product, current.profile, current.analysis)
+        }
+    }
+}
+
+private fun formatBmi(value: Float): String {
+    val rounded = (value * 10).roundToInt() / 10.0
+    return if (rounded % 1.0 == 0.0) rounded.toInt().toString() else rounded.toString()
 }
 
 // ==================== SCREEN ====================
@@ -142,7 +221,9 @@ fun ResultScreen(
             is ResultUiState.Success -> ResultContent(
                 product = state.product,
                 profile = state.profile,
-                analysis = state.analysis
+                analysis = state.analysis,
+                ai = state.ai,
+                onRetryAi = viewModel::retryAi
             )
         }
     }
@@ -176,7 +257,9 @@ private fun NoProfileContent() {
 private fun ResultContent(
     product: Product,
     profile: UserProfile,
-    analysis: NutritionAnalysis
+    analysis: NutritionAnalysis,
+    ai: AiAdviceState,
+    onRetryAi: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -295,15 +378,41 @@ private fun ResultContent(
             Row(verticalAlignment = Alignment.Top) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Color.White)
                 Spacer(Modifier.size(12.dp))
-                Column {
-                    Text("Saran NutriScan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = analysis.aiSuggestion
-                            ?: "Data nutrisi lengkap & saran AI akan tampil setelah integrasi OpenFoodFacts & Gemini.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.92f)
-                    )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("Saran AI NutriScan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(Modifier.height(6.dp))
+                    when (ai) {
+                        is AiAdviceState.Loading -> Text(
+                            text = "Menyusun saran personal untukmu...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.92f)
+                        )
+                        is AiAdviceState.Success -> Text(
+                            text = ai.advice,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.95f)
+                        )
+                        is AiAdviceState.Error -> Column {
+                            Text(
+                                text = ai.message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.92f)
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "Coba lagi",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.clickable { onRetryAi() }
+                            )
+                        }
+                        is AiAdviceState.Idle -> Text(
+                            text = "Memuat saran...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.92f)
+                        )
+                    }
                 }
             }
         }

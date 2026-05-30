@@ -3,7 +3,7 @@ package com.example.nutriscan.presentation.navigation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -61,7 +61,8 @@ fun NutriBottomBar(
     tabs: List<TabItem>,
     currentRouteName: String?,
     onSelect: (Route) -> Unit,
-    withCenterGap: Boolean = false
+    withCenterGap: Boolean = false,
+    onScanClick: (() -> Unit)? = null
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -72,7 +73,15 @@ fun NutriBottomBar(
 
         firstHalf.forEach { tab -> BarItem(tab, currentRouteName, onSelect) }
         if (withCenterGap) {
-            Spacer(Modifier.weight(1f)) // reserved for the center Scan FAB
+            // Center slot hosting the raised Scan button.
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.Center
+            ) {
+                ScanFab(onClick = { onScanClick?.invoke() })
+            }
             secondHalf.forEach { tab -> BarItem(tab, currentRouteName, onSelect) }
         }
     }
@@ -94,7 +103,14 @@ private fun androidx.compose.foundation.layout.RowScope.BarItem(
                 contentDescription = tab.label
             )
         },
-        label = { Text(tab.label) },
+        label = {
+            Text(
+                text = tab.label,
+                maxLines = 1,
+                softWrap = false,
+                style = MaterialTheme.typography.labelSmall
+            )
+        },
         alwaysShowLabel = true,
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -114,8 +130,8 @@ fun ScanFab(
 ) {
     Box(
         modifier = modifier
-            .size(64.dp)
-            .softShadow(elevation = 14.dp, shape = CircleShape, alpha = 0.4f)
+            .size(54.dp)
+            .softShadow(elevation = 12.dp, shape = CircleShape, alpha = 0.4f)
             .clip(CircleShape)
             .background(AppGradients.brand)
             .clickable { onClick() },
@@ -125,7 +141,7 @@ fun ScanFab(
             imageVector = Icons.Filled.QrCodeScanner,
             contentDescription = "Scan Barcode",
             tint = Color.White,
-            modifier = Modifier.size(30.dp)
+            modifier = Modifier.size(26.dp)
         )
     }
 }

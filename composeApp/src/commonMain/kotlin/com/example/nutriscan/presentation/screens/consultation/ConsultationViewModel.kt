@@ -9,6 +9,7 @@ import com.example.nutriscan.domain.repository.SessionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -40,6 +41,8 @@ class ConsultationViewModel(
             conversations = conversations.filter { it.userName == session.userName },
             errorMessage = err
         )
+    }.catch {
+        emit(ConsultationUiState(errorMessage = it.message ?: "Terjadi kesalahan"))
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

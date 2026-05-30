@@ -7,6 +7,16 @@ interface AIRepository {
     suspend fun translate(text: String, targetLanguage: String): Result<String>
     suspend fun chat(message: String): Result<String>
     suspend fun suggestTitle(content: String): Result<String>
+
+    /**
+     * Personalised nutrition advice for a scanned product, based on the user's
+     * health profile and the computed analysis.
+     */
+    suspend fun nutritionAdvice(
+        productSummary: String,
+        profileSummary: String,
+        analysisSummary: String
+    ): Result<String>
 }
 
 enum class WritingStyle(val displayName: String, val prompt: String) {

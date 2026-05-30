@@ -7,13 +7,16 @@ import com.example.nutriscan.data.local.datastore.DataStoreFactory
 import com.example.nutriscan.data.local.datastore.UserPreferences
 import com.example.nutriscan.data.local.datastore.create
 import com.example.nutriscan.data.remote.api.GeminiService
+import com.example.nutriscan.data.remote.api.OpenFoodFactsService
 import com.example.nutriscan.data.repository.AIRepositoryImpl
 import com.example.nutriscan.data.repository.ConsultationRepositoryImpl
+import com.example.nutriscan.data.repository.ProductRepositoryImpl
 import com.example.nutriscan.data.repository.ScanHistoryRepositoryImpl
 import com.example.nutriscan.data.repository.SessionRepositoryImpl
 import com.example.nutriscan.data.repository.UserProfileRepositoryImpl
 import com.example.nutriscan.domain.repository.AIRepository
 import com.example.nutriscan.domain.repository.ConsultationRepository
+import com.example.nutriscan.domain.repository.ProductRepository
 import com.example.nutriscan.domain.repository.ScanHistoryRepository
 import com.example.nutriscan.domain.repository.SessionRepository
 import com.example.nutriscan.domain.repository.UserProfileRepository
@@ -46,6 +49,7 @@ import org.koin.core.context.startKoin
 val networkModule = module {
     single { HttpClientFactory.create(enableLogging = true) }
     singleOf(::GeminiService)
+    singleOf(::OpenFoodFactsService)
 }
 
 // ==================== DATABASE MODULE ====================
@@ -72,6 +76,7 @@ val repositoryModule = module {
     singleOf(::AIRepositoryImpl)          bind AIRepository::class
     singleOf(::SessionRepositoryImpl)     bind SessionRepository::class
     singleOf(::ConsultationRepositoryImpl) bind ConsultationRepository::class
+    singleOf(::ProductRepositoryImpl)     bind ProductRepository::class
 }
 
 // ==================== USE CASE MODULE ====================
@@ -101,7 +106,9 @@ val viewModelModule = module {
             barcode                = params.get(),
             userProfileRepository  = get(),
             scanHistoryRepository  = get(),
-            analyzeNutritionUseCase = get()
+            productRepository      = get(),
+            analyzeNutritionUseCase = get(),
+            aiRepository           = get()
         )
     }
     // ChatViewModel receives conversationId as parameter
