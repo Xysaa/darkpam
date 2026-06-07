@@ -1,10 +1,10 @@
 package com.example.nutriscan.presentation.screens.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,256 +12,314 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.nutriscan.core.camera.BarcodeScanResult
-import com.example.nutriscan.core.camera.CameraBarcodeScannerView
-import com.example.nutriscan.domain.model.ScanResult
-import com.example.nutriscan.presentation.components.ErrorMessage
+import com.example.nutriscan.core.util.format1
+import com.example.nutriscan.presentation.components.BarEntry
+import com.example.nutriscan.presentation.components.EmptyState
+import com.example.nutriscan.presentation.components.GradientHeader
 import com.example.nutriscan.presentation.components.LoadingIndicator
-import com.example.nutriscan.presentation.components.StatusChip
+import com.example.nutriscan.presentation.components.RingProgress
+import com.example.nutriscan.presentation.components.ScanResultCard
+import com.example.nutriscan.presentation.components.SectionHeader
+import com.example.nutriscan.presentation.components.SoftCard
+import com.example.nutriscan.presentation.components.StatusBreakdownBar
+import com.example.nutriscan.presentation.components.StatusSlice
+import com.example.nutriscan.presentation.components.WeeklyBarChart
+import com.example.nutriscan.presentation.theme.AppGradients
+import com.example.nutriscan.presentation.theme.NutrientFat
+import com.example.nutriscan.presentation.theme.NutrientProtein
+import com.example.nutriscan.presentation.theme.NutrientSodium
+import com.example.nutriscan.presentation.theme.NutrientSugar
+import com.example.nutriscan.presentation.theme.StatusAvoid
+import com.example.nutriscan.presentation.theme.StatusCaution
+import com.example.nutriscan.presentation.theme.StatusSafe
 import org.koin.compose.viewmodel.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onBarcodeScanned: (String) -> Unit,
-    onNavigateToHistory: () -> Unit,
-    onNavigateToProfile: () -> Unit,
+    onScanClick: () -> Unit,
+    onOpenResult: (String) -> Unit,
+    onSeeAllHistory: () -> Unit,
+    onOpenConsultation: () -> Unit,
     viewModel: HomeViewModel = koinViewModel()
 ) {
-    val uiState        by viewModel.uiState.collectAsStateWithLifecycle()
-    val isScannerActive by viewModel.isScannerActive.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("NutriScan") },
-                actions = {
-                    IconButton(onClick = onNavigateToHistory) {
-                        Icon(Icons.Outlined.History, contentDescription = "Riwayat")
-                    }
-                    IconButton(onClick = onNavigateToProfile) {
-                        Icon(Icons.Outlined.Person, contentDescription = "Profil")
-                    }
-                }
+    Column(modifier = Modifier.fillMaxSize()) {
+        when (val state = uiState) {
+            is HomeUiState.Loading -> {
+                GradientHeader(title = "Halo 👋", subtitle = "Memuat ringkasan nutrisimu...")
+                LoadingIndicator()
+            }
+
+            is HomeUiState.Error -> {
+                GradientHeader(title = "Beranda")
+                EmptyState(
+                    icon = Icons.Filled.History,
+                    title = "Gagal memuat",
+                    subtitle = state.message,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            is HomeUiState.Ready -> DashboardContent(
+                dashboard = state.dashboard,
+                onScanClick = onScanClick,
+                onOpenResult = onOpenResult,
+                onSeeAllHistory = onSeeAllHistory,
+                onOpenConsultation = onOpenConsultation
             )
-        },
-        floatingActionButton = {
-            if (!isScannerActive) {
-                FloatingActionButton(
-                    onClick = viewModel::openScanner,
-                    shape   = CircleShape
-                ) {
-                    Icon(
-                        imageVector        = Icons.Outlined.QrCodeScanner,
-                        contentDescription = "Scan Barcode",
-                        modifier           = Modifier.size(28.dp)
-                    )
-                }
-            }
-        }
-    ) { padding ->
-
-        if (isScannerActive) {
-            // ── Full-screen camera scanner ────────────────────────────────────
-            Box(modifier = Modifier.fillMaxSize()) {
-                CameraBarcodeScannerView(
-                    modifier = Modifier.fillMaxSize(),
-                    onBarcodeDetected = { result ->
-                        viewModel.closeScanner()
-                        if (result is BarcodeScanResult.Success) {
-                            onBarcodeScanned(result.barcode)
-                        }
-                    }
-                )
-
-                // Close button overlay
-                Surface(
-                    modifier  = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp),
-                    shape     = CircleShape,
-                    color     = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                ) {
-                    IconButton(onClick = viewModel::closeScanner) {
-                        Icon(Icons.Default.Close, contentDescription = "Tutup Scanner")
-                    }
-                }
-
-                // Scan guide overlay
-                ScanGuideOverlay(
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-        } else {
-            // ── Main content ──────────────────────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                // Hero scan prompt
-                ScanPromptCard(
-                    onClick  = viewModel::openScanner,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                )
-
-                // Recent scans section
-                when (val state = uiState) {
-                    is HomeUiState.Loading -> LoadingIndicator()
-
-                    is HomeUiState.Ready -> {
-                        if (state.recentScans.isNotEmpty()) {
-                            Text(
-                                text     = "Scan Terakhir",
-                                style    = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-                            LazyColumn(
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                items(state.recentScans, key = { it.id }) { scan ->
-                                    RecentScanCard(
-                                        scan    = scan,
-                                        onClick = { onBarcodeScanned(scan.product.barcode) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    is HomeUiState.Error -> ErrorMessage(
-                        message = state.message,
-                        onRetry = null
-                    )
-
-                    else -> Unit
-                }
-            }
         }
     }
 }
 
-// ── Sub-composables ───────────────────────────────────────────────────────────
-
 @Composable
-private fun ScanPromptCard(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+private fun DashboardContent(
+    dashboard: HomeDashboard,
+    onScanClick: () -> Unit,
+    onOpenResult: (String) -> Unit,
+    onSeeAllHistory: () -> Unit,
+    onOpenConsultation: () -> Unit
 ) {
-    Card(
-        modifier  = modifier.fillMaxWidth(),
-        onClick   = onClick,
-        colors    = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+    Column(modifier = Modifier.fillMaxSize()) {
+        GradientHeader(
+            title = "Halo, ${dashboard.userName} 👋",
+            subtitle = "Yuk pantau nutrisimu hari ini"
         )
-    ) {
-        Row(
-            modifier            = Modifier.padding(20.dp),
-            verticalAlignment   = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                imageVector        = Icons.Outlined.QrCodeScanner,
-                contentDescription = null,
-                modifier           = Modifier.size(48.dp),
-                tint               = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Column {
-                Text(
-                    text  = "Scan Produk",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Text(
-                    text  = "Arahkan kamera ke barcode makanan/minuman",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                )
-            }
-        }
-    }
-}
 
-@Composable
-private fun RecentScanCard(
-    scan: ScanResult,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier              = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // ── Calorie ring + macros ───────────────────────────────────────
+            SoftCard(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text     = scan.product.displayName,
-                    style    = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    "Konsumsi Hari Ini",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
-                if (scan.product.brand.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RingProgress(
+                        progress = dashboard.calorieProgress,
+                        diameter = 132.dp,
+                        strokeWidth = 14.dp
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                dashboard.todayCalories.format1(),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "/ ${dashboard.calorieTarget.format1()} kkal",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(Modifier.size(16.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MacroStat("Gula", dashboard.todaySugar, "g", NutrientSugar)
+                        MacroStat("Garam", dashboard.todaySodium, "mg", NutrientSodium)
+                        MacroStat("Lemak", dashboard.todayFat, "g", NutrientFat)
+                        MacroStat("Protein", dashboard.todayProtein, "g", NutrientProtein)
+                    }
+                }
+
+                if (dashboard.todayEntries.isEmpty()) {
+                    Spacer(Modifier.height(12.dp))
                     Text(
-                        text  = scan.product.brand,
+                        "Belum ada yang dikonsumsi hari ini. Scan produk lalu tekan \"Catat Konsumsi\".",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                } else {
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        "Dikonsumsi (${dashboard.todayEntries.size})",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    dashboard.todayEntries.take(4).forEach { entry ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                entry.productName,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "${entry.calories.format1()} kkal",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
-            Spacer(Modifier.size(8.dp))
-            StatusChip(status = scan.analysis.overallStatus)
+
+            // ── Consultation promo ──────────────────────────────────────────
+            ConsultationPromo(onClick = onOpenConsultation)
+
+            // ── Weekly calories ─────────────────────────────────────────────
+            SoftCard(modifier = Modifier.fillMaxWidth()) {
+                SectionHeader(title = "Kalori 7 Hari")
+                Spacer(Modifier.height(16.dp))
+                WeeklyBarChart(
+                    data = dashboard.weekly.map {
+                        BarEntry(label = it.label, value = it.calories, highlighted = it.isToday)
+                    }
+                )
+            }
+
+            // ── Status breakdown ────────────────────────────────────────────
+            SoftCard(modifier = Modifier.fillMaxWidth()) {
+                SectionHeader(title = "Ringkasan Status Produk")
+                Spacer(Modifier.height(14.dp))
+                if (dashboard.totalScans == 0) {
+                    Text(
+                        "Belum ada produk yang dipindai.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    StatusBreakdownBar(
+                        slices = listOf(
+                            StatusSlice("Aman", dashboard.safeCount, StatusSafe),
+                            StatusSlice("Perhatian", dashboard.cautionCount, StatusCaution),
+                            StatusSlice("Hindari", dashboard.avoidCount, StatusAvoid)
+                        )
+                    )
+                }
+            }
+
+            // ── Recent scans ────────────────────────────────────────────────
+            SectionHeader(
+                title = "Scan Terakhir",
+                actionText = if (dashboard.recentScans.isNotEmpty()) "Lihat semua" else null,
+                onActionClick = onSeeAllHistory.takeIf { dashboard.recentScans.isNotEmpty() }
+            )
+
+            if (dashboard.recentScans.isEmpty()) {
+                SoftCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "Belum ada riwayat. Tekan tombol scan untuk memulai!",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                dashboard.recentScans.forEach { scan ->
+                    ScanResultCard(
+                        scan = scan,
+                        onClick = { onOpenResult(scan.product.barcode) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun ScanGuideOverlay(modifier: Modifier = Modifier) {
-    Column(
-        modifier            = modifier.padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Surface(
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
-            shape = MaterialTheme.shapes.medium
-        ) {
+private fun MacroStat(label: String, value: Float, unit: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(Modifier.size(8.dp))
+        Column {
             Text(
-                text     = "Arahkan kamera ke barcode produk",
-                style    = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                text = "${value.format1()} $unit",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConsultationPromo(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(AppGradients.energy)
+            .clickable { onClick() }
+            .padding(18.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.22f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Forum, contentDescription = null, tint = Color.White)
+            }
+            Spacer(Modifier.size(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Konsultasi dengan Ahli Gizi",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    "Dapatkan saran nutrisi yang dipersonalisasi",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White
             )
         }
     }

@@ -1,0 +1,75 @@
+-- Consultation schema: conversations between a user and a nutritionist,
+-- and the chat messages within each conversation. Runs fully local (dummy),
+-- persisted so chat history survives app restarts.
+
+CREATE TABLE ConversationEntity (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    nutritionist_id        TEXT    NOT NULL,
+    nutritionist_name      TEXT    NOT NULL,
+    nutritionist_specialty TEXT    NOT NULL DEFAULT '',
+    user_name              TEXT    NOT NULL,
+    created_at             INTEGER NOT NULL,
+    last_message           TEXT    NOT NULL DEFAULT '',
+    last_message_at        INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE ChatMessageEntity (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    sender          TEXT    NOT NULL,   -- 'USER' | 'NUTRITIONIST'
+    content         TEXT    NOT NULL,
+    timestamp       INTEGER NOT NULL
+);
+
+-- ──────────────────────── Conversations ────────────────────────
+
+-- All conversations, newest activity first (nutritionist dashboard + user list)
+getAllConversations:
+SELECT * FROM ConversationEntity
+ORDER BY last_message_at DESC, created_at DESC;
+
+-- A single conversation by id
+getConversationById:
+SELECT * FROM ConversationEntity
+WHERE id = ?;
+
+-- Find an existing conversation between a user and a nutritionist
+getConversationByPair:
+SELECT * FROM ConversationEntity
+WHERE nutritionist_id = ? AND user_name = ?
+LIMIT 1;
+
+-- Create a new conversation
+insertConversation:
+INSERT INTO ConversationEntity (
+    nutritionist_id, nutritionist_name, nutritionist_specialty,
+    user_name, created_at, last_message, last_message_at
+) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- Row id of the most recent insert (call inside a transaction)
+lastInsertRowId:
+SELECT last_insert_rowid();
+
+-- Update the conversation's last-message preview
+updateConversationLastMessage:
+UPDATE ConversationEntity
+SET last_message = ?, last_message_at = ?
+WHERE id = ?;
+
+-- ──────────────────────── Messages ────────────────────────
+
+-- All messages in a conversation, oldest first
+getMessages:
+SELECT * FROM ChatMessageEntity
+WHERE conversation_id = ?
+ORDER BY timestamp ASC, id ASC;
+
+-- Insert a new message
+insertMessage:
+INSERT INTO ChatMessageEntity (conversation_id, sender, content, timestamp)
+VALUES (?, ?, ?, ?);
+
+-- Count messages in a conversation (used to seed a welcome message)
+countMessages:
+SELECT COUNT(*) FROM ChatMessageEntity
+WHERE conversation_id = ?;

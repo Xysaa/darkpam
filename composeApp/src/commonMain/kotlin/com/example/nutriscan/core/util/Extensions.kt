@@ -23,6 +23,24 @@ fun Instant.formatTimeOnly(): String {
     return "${dateTime.hour.toString().padStart(2, '0')}:${dateTime.minute.toString().padStart(2, '0')}"
 }
 
+// ==================== NUMBER FORMATTING ====================
+
+/**
+ * Format a number with at most one decimal place, dropping a trailing ".0".
+ * e.g. 12.0 -> "12", 12.34 -> "12.3", 0.0 -> "0".
+ */
+fun Float.format1(): String {
+    val rounded = kotlin.math.round(this * 10f) / 10f
+    if (rounded % 1f == 0f) return rounded.toInt().toString()
+    val tenths = kotlin.math.round(kotlin.math.abs(rounded) * 10f).toInt()
+    val whole = tenths / 10
+    val frac = tenths % 10
+    val sign = if (rounded < 0f) "-" else ""
+    return "$sign$whole.$frac"
+}
+
+fun Double.format1(): String = this.toFloat().format1()
+
 // ==================== STRING EXTENSIONS ====================
 
 fun String.truncate(maxLength: Int): String {

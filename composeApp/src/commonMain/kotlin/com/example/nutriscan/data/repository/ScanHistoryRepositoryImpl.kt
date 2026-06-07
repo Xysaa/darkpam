@@ -37,6 +37,11 @@ class ScanHistoryRepositoryImpl(
             queries.getScanById(id).executeAsOneOrNull()?.toDomain()
         }
 
+    override suspend fun getScanByBarcode(barcode: String): ScanResult? =
+        withContext(Dispatchers.Default) {
+            queries.getScanByBarcode(barcode).executeAsOneOrNull()?.toDomain()
+        }
+
     override suspend fun saveScan(scanResult: ScanResult) =
         withContext(Dispatchers.Default) {
             val p   = scanResult.product

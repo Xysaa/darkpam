@@ -88,7 +88,11 @@ fun NutrientBar(
     }
 }
 
-/** Format float: show 1 decimal only when needed */
-private fun Float.formatted(): String =
-    if (this == kotlin.math.floor(this.toDouble()).toFloat()) toInt().toString()
-    else "%.1f".format(this)
+/** Format float: at most one decimal, dropping trailing .0 */
+private fun Float.formatted(): String {
+    val rounded = kotlin.math.round(this * 10f) / 10f
+    if (rounded % 1f == 0f) return rounded.toInt().toString()
+    val tenths = kotlin.math.round(kotlin.math.abs(rounded) * 10f).toInt()
+    val sign = if (rounded < 0f) "-" else ""
+    return "$sign${tenths / 10}.${tenths % 10}"
+}

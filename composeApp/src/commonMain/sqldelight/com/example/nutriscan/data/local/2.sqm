@@ -1,0 +1,17 @@
+-- Migration v2 -> v3: add the consumption log table.
+-- IF NOT EXISTS keeps it safe across fresh installs and upgrades.
+
+CREATE TABLE IF NOT EXISTS ConsumptionEntity (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    barcode       TEXT    NOT NULL DEFAULT '',
+    product_name  TEXT    NOT NULL,
+    amount_label  TEXT    NOT NULL DEFAULT '',
+    grams         REAL    NOT NULL DEFAULT 0,
+    calories      REAL    NOT NULL DEFAULT 0,
+    fat           REAL    NOT NULL DEFAULT 0,
+    sugar         REAL    NOT NULL DEFAULT 0,
+    sodium        REAL    NOT NULL DEFAULT 0,
+    protein       REAL    NOT NULL DEFAULT 0,
+    carbs         REAL    NOT NULL DEFAULT 0,
+    consumed_at   INTEGER NOT NULL
+);

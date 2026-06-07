@@ -92,4 +92,28 @@ class AIRepositoryImpl(
             systemPrompt = SystemPrompts.TITLE_SUGGESTER
         ).map { it.trim().removeSurrounding("\"") }
     }
+
+    override suspend fun nutritionAdvice(
+        productSummary: String,
+        profileSummary: String,
+        analysisSummary: String
+    ): Result<String> {
+        val prompt = """
+            Profil pengguna:
+            $profileSummary
+
+            Produk yang dipindai:
+            $productSummary
+
+            Hasil analisis nutrisi:
+            $analysisSummary
+
+            Berikan saran konsumsi yang singkat, kontekstual, dan personal untuk pengguna ini.
+        """.trimIndent()
+
+        return geminiService.generateContent(
+            prompt = prompt,
+            systemPrompt = SystemPrompts.NUTRITION_ADVISOR
+        ).map { it.trim() }
+    }
 }
